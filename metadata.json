@@ -1,0 +1,7 @@
+{
+  "name": "Copy of IELTS Speaking Coach AI",
+  "description": "A comprehensive IELTS Speaking practice application that acts as an examiner, provides real-time grammar and fluency feedback, and simulates the full exam structure.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
