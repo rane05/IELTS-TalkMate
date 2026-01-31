@@ -11,13 +11,20 @@ export enum PracticeMode {
   FULL_TEST = 'FULL_TEST',
   PART_1_ONLY = 'PART_1_ONLY',
   PART_2_ONLY = 'PART_2_ONLY',
-  PART_3_ONLY = 'PART_3_ONLY'
+  PART_3_ONLY = 'PART_3_ONLY',
+  GRAMMAR_COACH = 'GRAMMAR_COACH'
 }
 
 export enum DifficultyLevel {
   BEGINNER = 'BEGINNER',
   INTERMEDIATE = 'INTERMEDIATE',
   ADVANCED = 'ADVANCED'
+}
+
+export enum ExaminerPersonality {
+  ENCOURAGING = 'ENCOURAGING',
+  STRICT = 'STRICT',
+  PROFESSIONAL = 'PROFESSIONAL'
 }
 
 export interface Topic {
@@ -45,6 +52,7 @@ export interface FeedbackData {
   fluencyFeedback: string;
   estimatedBand: number;
   improvementTip: string;
+  fillerWordCount?: number;
   pronunciation?: PronunciationData;
 }
 
@@ -78,6 +86,7 @@ export interface SessionHistory {
   pronunciationScore: number;
   vocabularyScore: number;
   completedParts: ExamPart[];
+  scratchpadNotes?: string;
 }
 
 export interface SessionStats {

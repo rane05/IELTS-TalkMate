@@ -1,16 +1,17 @@
 import React from 'react';
-import { PracticeMode, DifficultyLevel, Topic } from '../types';
+import { PracticeMode, DifficultyLevel, Topic, ExaminerPersonality } from '../types';
 import { TOPICS } from '../constants';
-import { BookOpen, Zap, Target, Filter } from 'lucide-react';
+import { BookOpen, Zap, Target, Filter, User } from 'lucide-react';
 
 interface PracticeSelectorProps {
-    onStart: (mode: PracticeMode, topic?: Topic, difficulty?: DifficultyLevel) => void;
+    onStart: (mode: PracticeMode, topic?: Topic, difficulty?: DifficultyLevel, personality?: ExaminerPersonality) => void;
     onCancel: () => void;
 }
 
 export const PracticeSelector: React.FC<PracticeSelectorProps> = ({ onStart, onCancel }) => {
     const [selectedMode, setSelectedMode] = React.useState<PracticeMode>(PracticeMode.FULL_TEST);
     const [selectedDifficulty, setSelectedDifficulty] = React.useState<DifficultyLevel>(DifficultyLevel.INTERMEDIATE);
+    const [selectedPersonality, setSelectedPersonality] = React.useState<ExaminerPersonality>(ExaminerPersonality.PROFESSIONAL);
     const [selectedCategory, setSelectedCategory] = React.useState<string>('All');
     const [selectedTopic, setSelectedTopic] = React.useState<Topic | undefined>();
 
@@ -22,7 +23,7 @@ export const PracticeSelector: React.FC<PracticeSelectorProps> = ({ onStart, onC
     );
 
     const handleStart = () => {
-        onStart(selectedMode, selectedTopic, selectedDifficulty);
+        onStart(selectedMode, selectedTopic, selectedDifficulty, selectedPersonality);
     };
 
     return (
@@ -47,13 +48,14 @@ export const PracticeSelector: React.FC<PracticeSelectorProps> = ({ onStart, onC
                                 { mode: PracticeMode.PART_1_ONLY, label: 'Part 1 Only', icon: '👋', desc: '4-5 min' },
                                 { mode: PracticeMode.PART_2_ONLY, label: 'Part 2 Only', icon: '🎤', desc: '3-4 min' },
                                 { mode: PracticeMode.PART_3_ONLY, label: 'Part 3 Only', icon: '💬', desc: '4-5 min' },
+                                { mode: PracticeMode.GRAMMAR_COACH, label: 'Grammar Coach', icon: '✍️', desc: 'Real-time help' },
                             ].map(({ mode, label, icon, desc }) => (
                                 <button
                                     key={mode}
                                     onClick={() => setSelectedMode(mode)}
                                     className={`p-4 rounded-xl border-2 transition-all ${selectedMode === mode
-                                            ? 'border-indigo-600 bg-indigo-50 shadow-lg scale-105'
-                                            : 'border-gray-200 hover:border-indigo-300 hover:shadow-md'
+                                        ? 'border-indigo-600 bg-indigo-50 shadow-lg scale-105'
+                                        : 'border-gray-200 hover:border-indigo-300 hover:shadow-md'
                                         }`}
                                 >
                                     <div className="text-3xl mb-2">{icon}</div>
@@ -80,11 +82,41 @@ export const PracticeSelector: React.FC<PracticeSelectorProps> = ({ onStart, onC
                                     key={level}
                                     onClick={() => setSelectedDifficulty(level)}
                                     className={`p-3 rounded-xl border-2 transition-all ${selectedDifficulty === level
-                                            ? `border-${color}-600 bg-${color}-50 shadow-lg`
-                                            : 'border-gray-200 hover:border-gray-300'
+                                        ? `border-${color}-600 bg-${color}-50 shadow-lg`
+                                        : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
                                     <div className="font-semibold text-sm">{label}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Personality Selection */}
+                    <div className="space-y-3">
+                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            Examiner Personality
+                        </label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {[
+                                { id: ExaminerPersonality.ENCOURAGING, label: 'Encouraging', icon: '😊', desc: 'Friendly & Supportive' },
+                                { id: ExaminerPersonality.PROFESSIONAL, label: 'Professional', icon: '👔', desc: 'Standard Examiner' },
+                                { id: ExaminerPersonality.STRICT, label: 'Strict', icon: '🧐', desc: 'Formal & Serious' },
+                            ].map(({ id, label, icon, desc }) => (
+                                <button
+                                    key={id}
+                                    onClick={() => setSelectedPersonality(id)}
+                                    className={`p-3 rounded-xl border-2 transition-all text-left ${selectedPersonality === id
+                                        ? 'border-indigo-600 bg-indigo-50 shadow-md'
+                                        : 'border-gray-200 hover:border-indigo-200'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span>{icon}</span>
+                                        <div className="font-semibold text-sm">{label}</div>
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 mt-1 line-clamp-1">{desc}</div>
                                 </button>
                             ))}
                         </div>
@@ -105,8 +137,8 @@ export const PracticeSelector: React.FC<PracticeSelectorProps> = ({ onStart, onC
                                         key={cat}
                                         onClick={() => setSelectedCategory(cat)}
                                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${selectedCategory === cat
-                                                ? 'bg-indigo-600 text-white shadow-md'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                             }`}
                                     >
                                         {cat}
@@ -119,8 +151,8 @@ export const PracticeSelector: React.FC<PracticeSelectorProps> = ({ onStart, onC
                                 <button
                                     onClick={() => setSelectedTopic(undefined)}
                                     className={`p-4 rounded-xl border-2 text-left transition-all ${!selectedTopic
-                                            ? 'border-indigo-600 bg-indigo-50 shadow-lg'
-                                            : 'border-gray-200 hover:border-indigo-300'
+                                        ? 'border-indigo-600 bg-indigo-50 shadow-lg'
+                                        : 'border-gray-200 hover:border-indigo-300'
                                         }`}
                                 >
                                     <div className="font-semibold text-sm text-gray-900">🎲 Random Topic</div>
@@ -131,8 +163,8 @@ export const PracticeSelector: React.FC<PracticeSelectorProps> = ({ onStart, onC
                                         key={topic.id}
                                         onClick={() => setSelectedTopic(topic)}
                                         className={`p-4 rounded-xl border-2 text-left transition-all ${selectedTopic?.id === topic.id
-                                                ? 'border-indigo-600 bg-indigo-50 shadow-lg'
-                                                : 'border-gray-200 hover:border-indigo-300'
+                                            ? 'border-indigo-600 bg-indigo-50 shadow-lg'
+                                            : 'border-gray-200 hover:border-indigo-300'
                                             }`}
                                     >
                                         <div className="font-semibold text-sm text-gray-900">{topic.name}</div>

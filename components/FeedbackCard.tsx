@@ -5,9 +5,10 @@ import { PronunciationCard } from './PronunciationCard';
 
 interface FeedbackCardProps {
   feedback: FeedbackData;
+  onSaveVocabulary?: (word: string) => void;
 }
 
-export const FeedbackCard: React.FC<FeedbackCardProps> = ({ feedback }) => {
+export const FeedbackCard: React.FC<FeedbackCardProps> = ({ feedback, onSaveVocabulary }) => {
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden animate-fade-in">
@@ -45,11 +46,21 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ feedback }) => {
 
           {/* Fluency */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-              <div className="flex items-center gap-2 text-blue-800 font-medium text-sm mb-1">
-                <TrendingUp className="w-4 h-4" /> Fluency
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-blue-800 font-medium text-sm mb-1">
+                  <TrendingUp className="w-4 h-4" /> Fluency
+                </div>
+                <p className="text-xs text-blue-900">{feedback.fluencyFeedback}</p>
               </div>
-              <p className="text-xs text-blue-900">{feedback.fluencyFeedback}</p>
+              {feedback.fillerWordCount !== undefined && (
+                <div className="mt-2 pt-2 border-t border-blue-200 flex justify-between items-center">
+                  <span className="text-[10px] uppercase font-bold text-blue-600">Filler Words</span>
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${feedback.fillerWordCount > 3 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                    {feedback.fillerWordCount}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
               <div className="flex items-center gap-2 text-purple-800 font-medium text-sm mb-1">
@@ -57,9 +68,15 @@ export const FeedbackCard: React.FC<FeedbackCardProps> = ({ feedback }) => {
               </div>
               <div className="flex flex-wrap gap-1">
                 {feedback.vocabularySuggestions.slice(0, 3).map((word, i) => (
-                  <span key={i} className="bg-white px-2 py-0.5 rounded border border-purple-200 text-xs text-purple-700">
+                  <button
+                    key={i}
+                    onClick={() => onSaveVocabulary?.(word)}
+                    className="bg-white px-2 py-0.5 rounded border border-purple-200 text-xs text-purple-700 hover:bg-purple-100 transition-colors flex items-center gap-1 group"
+                    title="Save to Vocabulary Bank"
+                  >
                     {word}
-                  </span>
+                    <span className="opacity-0 group-hover:opacity-100 text-[8px] transition-opacity">+</span>
+                  </button>
                 ))}
               </div>
             </div>

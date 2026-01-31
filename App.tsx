@@ -6,9 +6,9 @@ import { PracticeSelector } from './components/PracticeSelector';
 import { SessionHistoryView } from './components/SessionHistoryView';
 import { SessionDetailView } from './components/SessionDetailView';
 import { processUserAudio } from './services/geminiService';
-import { ExamPart, ConversationTurn, ExaminerResponse, PracticeMode, Topic, DifficultyLevel, SessionHistory, SessionStats } from './types';
+import { ExamPart, ConversationTurn, ExaminerResponse, PracticeMode, Topic, DifficultyLevel, SessionHistory, SessionStats, ExaminerPersonality } from './types';
 import { PART_DESCRIPTIONS, MOCK_STATS } from './constants';
-import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare } from 'lucide-react';
+import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare, BookOpen } from 'lucide-react';
 
 // Simple helper to convert Blob to base64
 const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -37,6 +37,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [examinerText, setExaminerText] = useState("Hello. I am your IELTS examiner today. Could you please tell me your full name?");
   const [sessionStartTime, setSessionStartTime] = useState<number>(0);
+  const [currentPersonality, setCurrentPersonality] = useState<ExaminerPersonality>(ExaminerPersonality.PROFESSIONAL);
 
   // Stats & History
   const [stats, setStats] = useState<SessionStats>(MOCK_STATS);
@@ -44,6 +45,8 @@ export default function App() {
   // Part 2 Timer
   const [timer, setTimer] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [scratchpad, setScratchpad] = useState("");
+  const [showScratchpad, setShowScratchpad] = useState(false);
 
   const conversationEndRef = useRef<HTMLDivElement>(null);
 
@@ -74,6 +77,7 @@ export default function App() {
         speak("Thank you. That is the end of Part 2.");
         setCurrentPart(ExamPart.PART_3);
         setExaminerText("Thank you. Now let's move on to Part 3.");
+        setShowScratchpad(false);
       }
     }
     return () => clearInterval(interval);
@@ -89,12 +93,14 @@ export default function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleStartPractice = (mode: PracticeMode, topic?: Topic, difficulty?: DifficultyLevel) => {
+  const handleStartPractice = (mode: PracticeMode, topic?: Topic, difficulty?: DifficultyLevel, personality: ExaminerPersonality = ExaminerPersonality.PROFESSIONAL) => {
     setView('practice');
     setPracticeMode(mode);
     setSelectedTopic(topic);
     setSessionStartTime(Date.now());
     setConversation([]);
+    setCurrentPersonality(personality);
+    setScratchpad(""); // Reset scratchpad for new session
 
     // Set initial part based on mode
     if (mode === PracticeMode.PART_1_ONLY) {
@@ -109,10 +115,15 @@ export default function App() {
       const prepMsg = `Now I will give you a topic: ${topicText}. You have one minute to prepare.`;
       setExaminerText(prepMsg);
       speak(prepMsg);
+      setShowScratchpad(true);
     } else if (mode === PracticeMode.PART_3_ONLY) {
       setCurrentPart(ExamPart.PART_3);
       setExaminerText("Let's discuss some abstract questions. What do you think about...");
       speak("Let's discuss some abstract questions.");
+    } else if (mode === PracticeMode.GRAMMAR_COACH) {
+      setCurrentPart(ExamPart.PART_1);
+      setExaminerText("Hello! I am your Grammar Coach. I'll help you correct your mistakes while we talk. What would you like to talk about today?");
+      speak("Hello! I am your Grammar Coach. I'll help you correct your mistakes while we talk. What would you like to talk about today?");
     } else {
       // Full test
       setCurrentPart(ExamPart.PART_1);
@@ -144,7 +155,7 @@ export default function App() {
         `${t.role}: ${t.text || (t.audioUrl ? '[Audio]' : '')}`
       ).join('\n');
 
-      const response: ExaminerResponse = await processUserAudio(b64, currentPart, context);
+      const response: ExaminerResponse = await processUserAudio(b64, currentPart, context, practiceMode, currentPersonality);
 
       // Update the user turn with transcribed text
       if (response.userTranscript) {
@@ -181,6 +192,7 @@ export default function App() {
         const prepMsg = `Now I will give you a topic: ${topicText}. You have one minute to prepare.`;
         speak(prepMsg);
         setExaminerText(prepMsg);
+        setShowScratchpad(true);
       }
 
     } catch (err) {
@@ -222,7 +234,8 @@ export default function App() {
       fluencyScore,
       pronunciationScore,
       vocabularyScore,
-      completedParts: [currentPart]
+      completedParts: [currentPart],
+      scratchpadNotes: scratchpad
     };
 
     setStats(prev => ({
@@ -235,6 +248,26 @@ export default function App() {
         date: new Date(sessionStartTime).toLocaleDateString(),
         band: Math.round(avgBand * 2) / 2
       }].slice(-5)
+    }));
+  };
+
+  const handleSaveVocabulary = (word: string) => {
+    // Check if word already exists
+    if (stats.vocabularyBank.some(item => item.word.toLowerCase() === word.toLowerCase())) {
+      return;
+    }
+
+    const newItem = {
+      word,
+      definition: "Review during your next session", // Placeholder or fetch from AI
+      example: "Used in your recent IELTS practice session",
+      learnedDate: Date.now(),
+      reviewCount: 0
+    };
+
+    setStats(prev => ({
+      ...prev,
+      vocabularyBank: [newItem, ...prev.vocabularyBank]
     }));
   };
 
@@ -298,6 +331,7 @@ ${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
         {view === 'dashboard' ? (
           <Dashboard
             onStartPractice={() => setView('selector')}
+            onStartGrammarCoach={() => handleStartPractice(PracticeMode.GRAMMAR_COACH)}
             onViewHistory={() => setShowHistory(true)}
             stats={stats}
           />
@@ -321,6 +355,35 @@ ${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
                 </div>
               )}
             </div>
+
+            {/* Part 2 Scratchpad */}
+            {showScratchpad && (
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 shadow-sm border border-amber-200 animate-fade-in">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-500 rounded-lg">
+                      <BookOpen className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-amber-900">Digital Scratchpad</h3>
+                      <p className="text-xs text-amber-700">Notes will disappear after Part 2</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowScratchpad(false)}
+                    className="text-xs font-semibold text-amber-600 hover:text-amber-800"
+                  >
+                    Hide
+                  </button>
+                </div>
+                <textarea
+                  value={scratchpad}
+                  onChange={(e) => setScratchpad(e.target.value)}
+                  placeholder="Structure your talk here... (bullet points, keywords, ideas)"
+                  className="w-full h-40 bg-white/50 border-2 border-amber-200 rounded-xl p-3 text-gray-800 placeholder-amber-400 focus:outline-none focus:border-amber-400 transition-colors resize-none shadow-inner"
+                />
+              </div>
+            )}
 
             {/* Conversation Area */}
             <div className="space-y-6">
@@ -353,7 +416,12 @@ ${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
               <div className="space-y-8">
                 {conversation.filter(t => t.role === 'examiner' && t.feedback).map((turn) => (
                   <div key={turn.id} className="opacity-90 hover:opacity-100 transition-opacity">
-                    {turn.feedback && <FeedbackCard feedback={turn.feedback} />}
+                    {turn.feedback && (
+                      <FeedbackCard
+                        feedback={turn.feedback}
+                        onSaveVocabulary={handleSaveVocabulary}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { SessionHistory } from '../types';
-import { X, Download, TrendingUp, MessageSquare, Award } from 'lucide-react';
+import { X, Download, TrendingUp, MessageSquare, Award, BookOpen } from 'lucide-react';
 
 interface SessionDetailViewProps {
     session: SessionHistory;
@@ -82,6 +82,19 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({ session, o
                         </div>
                     </div>
 
+                    {/* Scratchpad Notes (if any) */}
+                    {session.scratchpadNotes && (
+                        <div className="bg-amber-50 p-6 rounded-2xl border-2 border-amber-200">
+                            <h3 className="text-lg font-bold text-amber-900 flex items-center gap-2 mb-3">
+                                <BookOpen className="w-5 h-5" />
+                                Your Scratchpad Notes
+                            </h3>
+                            <div className="bg-white/50 rounded-xl p-4 text-gray-800 italic whitespace-pre-wrap border border-amber-100 shadow-inner">
+                                {session.scratchpadNotes}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Conversation Transcript */}
                     <div className="space-y-3">
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -115,6 +128,14 @@ export const SessionDetailView: React.FC<SessionDetailViewProps> = ({ session, o
                                                         <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full font-bold">
                                                             {turn.feedback.estimatedBand}
                                                         </span>
+                                                        {turn.feedback.fillerWordCount !== undefined && (
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="font-semibold text-gray-500 ml-2">Fillers:</span>
+                                                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${turn.feedback.fillerWordCount > 3 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                                                    {turn.feedback.fillerWordCount}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     {turn.feedback.grammarMistakes.length > 0 && (

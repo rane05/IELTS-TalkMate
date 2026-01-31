@@ -6,11 +6,12 @@ import { Trophy, Clock, Book, Activity, History, TrendingUp, TrendingDown, Volum
 
 interface DashboardProps {
   onStartPractice: () => void;
+  onStartGrammarCoach?: () => void;
   onViewHistory?: () => void;
   stats?: SessionStats;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onStartPractice, onViewHistory, stats = MOCK_STATS }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onStartPractice, onStartGrammarCoach, onViewHistory, stats = MOCK_STATS }) => {
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-8">
       {/* Header */}
@@ -130,8 +131,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartPractice, onViewHis
               onClick={onStartPractice}
               className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-lg font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 w-full"
             >
-              🚀 Start New Session
+              🎯 Full IELTS Practice
             </button>
+            {onStartGrammarCoach && (
+              <button
+                onClick={onStartGrammarCoach}
+                className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-lg font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 w-full flex items-center justify-center gap-2"
+              >
+                ✍️ Speak with Grammar Coach
+              </button>
+            )}
             {onViewHistory && (
               <button
                 onClick={onViewHistory}
