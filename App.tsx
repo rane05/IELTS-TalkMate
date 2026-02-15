@@ -5,10 +5,28 @@ import { FeedbackCard } from './components/FeedbackCard';
 import { PracticeSelector } from './components/PracticeSelector';
 import { SessionHistoryView } from './components/SessionHistoryView';
 import { SessionDetailView } from './components/SessionDetailView';
+import { ModuleNavigation } from './components/ModuleNavigation';
+import { ReadingDashboard } from './components/reading/ReadingDashboard';
+import { ReadingTest } from './components/reading/ReadingTest';
+import { ReadingResults } from './components/reading/ReadingResults';
+import { WritingDashboard } from './components/writing/WritingDashboard';
+import { WritingEditor } from './components/writing/WritingEditor';
+import { WritingResults } from './components/writing/WritingResults';
+import { VocabularyDashboard } from './components/vocabulary/VocabularyDashboard';
+import { Flashcards } from './components/vocabulary/Flashcards';
+import { ListeningDashboard } from './components/listening/ListeningDashboard';
+import { ListeningTestComponent } from './components/listening/ListeningTest';
+import { ListeningResults } from './components/listening/ListeningResults';
 import { processUserAudio } from './services/geminiService';
+import { analyzeWriting } from './services/writingService';
 import { ExamPart, ConversationTurn, ExaminerResponse, PracticeMode, Topic, DifficultyLevel, SessionHistory, SessionStats, ExaminerPersonality } from './types';
+import { ReadingPassage } from './types/reading';
+import { WritingPrompt, WritingFeedback } from './types/writing';
+import { VocabularyTopic, VocabularyWord } from './types/vocabulary';
+import { ListeningTest } from './types/listening';
+import { SAMPLE_VOCABULARY } from './data/vocabularyData';
 import { PART_DESCRIPTIONS, MOCK_STATS } from './constants';
-import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare, BookOpen } from 'lucide-react';
+import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare, BookOpen, Home } from 'lucide-react';
 
 // Simple helper to convert Blob to base64
 const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -24,8 +42,9 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 };
 
 export default function App() {
-  // View states
-  const [view, setView] = useState<'dashboard' | 'practice' | 'selector'>('dashboard');
+  // Main view states - now supports multiple modules
+  const [currentModule, setCurrentModule] = useState<'home' | 'speaking' | 'reading' | 'writing' | 'listening' | 'vocabulary' | 'mocktest' | 'resources' | 'analytics'>('home');
+  const [view, setView] = useState<'dashboard' | 'practice' | 'selector' | 'test' | 'results'>('dashboard');
   const [showHistory, setShowHistory] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionHistory | null>(null);
 
@@ -49,6 +68,28 @@ export default function App() {
   const [showScratchpad, setShowScratchpad] = useState(false);
 
   const conversationEndRef = useRef<HTMLDivElement>(null);
+
+  // Reading Module States
+  const [selectedPassage, setSelectedPassage] = useState<ReadingPassage | null>(null);
+  const [readingAnswers, setReadingAnswers] = useState<Record<string, string>>({});
+  const [readingTimeSpent, setReadingTimeSpent] = useState(0);
+  const [showReadingResults, setShowReadingResults] = useState(false);
+
+  // Writing Module States
+  const [selectedPrompt, setSelectedPrompt] = useState<WritingPrompt | null>(null);
+  const [writingContent, setWritingContent] = useState('');
+  const [writingFeedback, setWritingFeedback] = useState<WritingFeedback | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // Vocabulary Module States
+  const [selectedVocabTopic, setSelectedVocabTopic] = useState<VocabularyTopic | null>(null);
+  const [showFlashcards, setShowFlashcards] = useState(false);
+
+  // Listening Module States
+  const [selectedListeningTest, setSelectedListeningTest] = useState<ListeningTest | null>(null);
+  const [listeningAnswers, setListeningAnswers] = useState<Record<string, string>>({});
+  const [listeningTimeSpent, setListeningTimeSpent] = useState(0);
+  const [showListeningResults, setShowListeningResults] = useState(false);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -307,42 +348,45 @@ ${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 text-gray-800 font-sans">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('dashboard')}>
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-1.5 rounded-lg">
-              <Mic className="text-white w-5 h-5" />
-            </div>
-            <span className="font-bold text-xl text-gray-900 tracking-tight">IELTS<span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Coach</span></span>
-          </div>
-          {view === 'practice' && (
-            <button onClick={() => { setView('dashboard'); saveSession(); }} className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1">
-              <ArrowLeft className="w-4 h-4" /> End Session
-            </button>
-          )}
-        </div>
-      </nav>
+  // Main content renderer based on current module
+  const renderContent = () => {
+    // Home - Module Selection
+    if (currentModule === 'home') {
+      return (
+        <ModuleNavigation
+          onSelectModule={(module) => {
+            setCurrentModule(module);
+            setView('dashboard');
+          }}
+          stats={{
+            speaking: { sessions: stats.totalSessions, band: stats.averageBand },
+            vocabulary: { wordsLearned: stats.vocabularyBank.length }
+          }}
+        />
+      );
+    }
 
-      {/* Content */}
-      <main className="pb-20">
-        {view === 'dashboard' ? (
+    // Speaking Module
+    if (currentModule === 'speaking') {
+      if (view === 'dashboard') {
+        return (
           <Dashboard
             onStartPractice={() => setView('selector')}
             onStartGrammarCoach={() => handleStartPractice(PracticeMode.GRAMMAR_COACH)}
             onViewHistory={() => setShowHistory(true)}
             stats={stats}
           />
-        ) : view === 'selector' ? (
+        );
+      } else if (view === 'selector') {
+        return (
           <PracticeSelector
             onStart={handleStartPractice}
             onCancel={() => setView('dashboard')}
           />
-        ) : (
+        );
+      } else if (view === 'practice') {
+        return (
           <div className="max-w-4xl mx-auto p-4 space-y-6">
-
             {/* Status Bar */}
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
               <div>
@@ -446,10 +490,266 @@ ${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
                 )}
               </div>
             </div>
-
           </div>
-        )}
-      </main>
+        );
+      }
+    }
+
+    // Reading Module
+    if (currentModule === 'reading') {
+      if (view === 'results' && selectedPassage && showReadingResults) {
+        return (
+          <ReadingResults
+            passage={selectedPassage}
+            answers={readingAnswers}
+            timeSpent={readingTimeSpent}
+            onRetry={() => {
+              setShowReadingResults(false);
+              setView('test');
+            }}
+            onBackToDashboard={() => {
+              setView('dashboard');
+              setShowReadingResults(false);
+              setSelectedPassage(null);
+            }}
+          />
+        );
+      } else if (view === 'test' && selectedPassage) {
+        return (
+          <ReadingTest
+            passage={selectedPassage}
+            onComplete={(answers, timeSpent) => {
+              setReadingAnswers(answers);
+              setReadingTimeSpent(timeSpent);
+              setShowReadingResults(true);
+              setView('results');
+            }}
+            onCancel={() => {
+              setView('dashboard');
+              setSelectedPassage(null);
+            }}
+          />
+        );
+      } else {
+        return (
+          <ReadingDashboard
+            onStartTest={(passage) => {
+              setSelectedPassage(passage);
+              setView('test');
+            }}
+            onViewResults={() => {
+              // TODO: Implement results history view
+            }}
+          />
+        );
+      }
+    }
+
+    // Writing Module
+    if (currentModule === 'writing') {
+      if (view === 'results' && selectedPrompt && writingFeedback) {
+        return (
+          <WritingResults
+            prompt={selectedPrompt}
+            content={writingContent}
+            feedback={writingFeedback}
+            onRetry={() => {
+              setWritingFeedback(null);
+              setWritingContent('');
+              setView('test');
+            }}
+            onBackToDashboard={() => {
+              setView('dashboard');
+              setWritingFeedback(null);
+              setWritingContent('');
+              setSelectedPrompt(null);
+            }}
+          />
+        );
+      } else if (view === 'test' && selectedPrompt) {
+        return (
+          <WritingEditor
+            prompt={selectedPrompt}
+            onSubmit={async (content, wordCount, timeSpent) => {
+              setWritingContent(content);
+              setIsAnalyzing(true);
+              try {
+                const feedback = await analyzeWriting(content, selectedPrompt.taskType, selectedPrompt.prompt);
+                setWritingFeedback(feedback);
+                setView('results');
+              } catch (error) {
+                console.error('Error analyzing writing:', error);
+                alert('Failed to analyze writing. Please try again.');
+              } finally {
+                setIsAnalyzing(false);
+              }
+            }}
+            onCancel={() => {
+              setView('dashboard');
+              setSelectedPrompt(null);
+              setWritingContent('');
+            }}
+          />
+        );
+      } else {
+        return (
+          <WritingDashboard
+            onStartTask={(prompt) => {
+              setSelectedPrompt(prompt);
+              setView('test');
+            }}
+            onViewResults={() => {
+              // TODO: Implement results history view
+            }}
+          />
+        );
+      }
+    }
+
+    // Vocabulary Module
+    if (currentModule === 'vocabulary') {
+      if (showFlashcards && selectedVocabTopic) {
+        const topicWords = SAMPLE_VOCABULARY[selectedVocabTopic.id] || [];
+        return (
+          <Flashcards
+            topic={selectedVocabTopic}
+            words={topicWords}
+            onComplete={(correctCount, totalCount) => {
+              setShowFlashcards(false);
+              setSelectedVocabTopic(null);
+              // TODO: Save progress
+            }}
+            onBack={() => {
+              setShowFlashcards(false);
+              setSelectedVocabTopic(null);
+            }}
+          />
+        );
+      } else {
+        return (
+          <VocabularyDashboard
+            onStartFlashcards={(topic) => {
+              setSelectedVocabTopic(topic);
+              setShowFlashcards(true);
+            }}
+            onViewWordList={(topic) => {
+              // TODO: Implement word list view
+            }}
+            stats={{
+              totalWords: stats.vocabularyBank.length,
+              masteredWords: Math.floor(stats.vocabularyBank.length * 0.6),
+              currentStreak: 5,
+              dailyGoal: 10
+            }}
+          />
+        );
+      }
+    }
+
+    // Listening Module
+    if (currentModule === 'listening') {
+      if (view === 'results' && selectedListeningTest && showListeningResults) {
+        return (
+          <ListeningResults
+            test={selectedListeningTest}
+            answers={listeningAnswers}
+            timeSpent={listeningTimeSpent}
+            onRetry={() => {
+              setShowListeningResults(false);
+              setView('dashboard');
+              setSelectedListeningTest(null);
+            }}
+            onBackToDashboard={() => {
+              setView('dashboard');
+              setShowListeningResults(false);
+              setSelectedListeningTest(null);
+            }}
+          />
+        );
+      } else if (view === 'test' && selectedListeningTest) {
+        return (
+          <ListeningTestComponent
+            test={selectedListeningTest}
+            onComplete={(answers, timeSpent) => {
+              setListeningAnswers(answers);
+              setListeningTimeSpent(timeSpent);
+              setShowListeningResults(true);
+              setView('results');
+            }}
+            onCancel={() => {
+              setView('dashboard');
+              setSelectedListeningTest(null);
+            }}
+          />
+        );
+      } else {
+        return (
+          <ListeningDashboard
+            onStartTest={(test) => {
+              setSelectedListeningTest(test);
+              setView('test');
+            }}
+            onViewResults={() => {
+              // TODO: Implement results history view
+            }}
+          />
+        );
+      }
+    }
+
+    // Placeholder for other modules
+    return (
+      <div className="max-w-4xl mx-auto p-6 text-center">
+        <h2 className="text-3xl font-bold text-gray-900 mb-4">
+          {currentModule.charAt(0).toUpperCase() + currentModule.slice(1)} Module
+        </h2>
+        <p className="text-gray-600 mb-6">This module is coming soon!</p>
+        <button
+          onClick={() => setCurrentModule('home')}
+          className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+        >
+          Back to All Modules
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 text-gray-800 font-sans">
+      {/* Navbar */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setCurrentModule('home'); setView('dashboard'); }}>
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-1.5 rounded-lg">
+              <Mic className="text-white w-5 h-5" />
+            </div>
+            <span className="font-bold text-xl text-gray-900 tracking-tight">IELTS<span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">TalkMate</span></span>
+          </div>
+          <div className="flex items-center gap-4">
+            {currentModule !== 'home' && (
+              <button
+                onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
+                className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1"
+              >
+                <Home className="w-4 h-4" /> All Modules
+              </button>
+            )}
+            {view === 'practice' && currentModule === 'speaking' && (
+              <button onClick={() => { setView('dashboard'); saveSession(); }} className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1">
+                <ArrowLeft className="w-4 h-4" /> End Session
+              </button>
+            )}
+            {view === 'test' && currentModule === 'reading' && (
+              <button onClick={() => { setView('dashboard'); setSelectedPassage(null); }} className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1">
+                <ArrowLeft className="w-4 h-4" /> Exit Test
+              </button>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Content */}
+      <main className="pb-20">{renderContent()}</main>
 
       {/* Session History Modal */}
       {showHistory && (
