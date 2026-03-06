@@ -1,6 +1,6 @@
 import React from 'react';
 import { WritingFeedback, WritingPrompt } from '../../types/writing';
-import { Award, BookOpen, MessageCircle, CheckCircle, XCircle, TrendingUp, ArrowLeft, FileText } from 'lucide-react';
+import { Award, BookOpen, MessageCircle, CheckCircle, XCircle, TrendingUp, ArrowLeft, FileText, Sparkles } from 'lucide-react';
 
 interface WritingResultsProps {
     prompt: WritingPrompt;
@@ -159,7 +159,7 @@ export const WritingResults: React.FC<WritingResultsProps> = ({
                         )}
 
                         {/* Strengths */}
-                        {criteria.data.strengths && criteria.data.strengths.length > 0 && (
+                        {'strengths' in criteria.data && criteria.data.strengths && criteria.data.strengths.length > 0 && (
                             <div className="mb-6">
                                 <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
                                     <CheckCircle className="w-5 h-5 text-green-600" />
@@ -177,7 +177,7 @@ export const WritingResults: React.FC<WritingResultsProps> = ({
                         )}
 
                         {/* Improvements */}
-                        {criteria.data.improvements && criteria.data.improvements.length > 0 && (
+                        {'improvements' in criteria.data && criteria.data.improvements && criteria.data.improvements.length > 0 && (
                             <div>
                                 <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
                                     <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -274,6 +274,61 @@ export const WritingResults: React.FC<WritingResultsProps> = ({
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Band 9 Rephrasing */}
+                {feedback.band9RephrasedSections && feedback.band9RephrasedSections.length > 0 && (
+                    <div className="bg-gradient-to-br from-slate-900 to-indigo-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-20 -mt-20" />
+
+                        <div className="relative z-10 space-y-8">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-indigo-500/20 rounded-2xl backdrop-blur-md border border-indigo-400/30">
+                                    <Sparkles className="w-6 h-6 text-indigo-300" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black tracking-tight text-white">Band 9 Rephraser</h3>
+                                    <p className="text-indigo-300/80 text-sm font-bold uppercase tracking-widest">AI Expert Refinement</p>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-6">
+                                {feedback.band9RephrasedSections.map((section, idx) => (
+                                    <div key={idx} className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 space-y-6">
+                                        <div className="grid lg:grid-cols-2 gap-8">
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2 text-[0.65rem] font-black uppercase tracking-widest text-slate-400">
+                                                    <XCircle className="w-3 h-3 text-rose-500" />
+                                                    Original Version
+                                                </div>
+                                                <p className="text-slate-300 italic font-medium leading-relaxed">
+                                                    "{section.original}"
+                                                </p>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2 text-[0.65rem] font-black uppercase tracking-widest text-emerald-400">
+                                                    <CheckCircle className="w-3 h-3 text-emerald-500" />
+                                                    Band 9 Refinement
+                                                </div>
+                                                <p className="text-white font-bold leading-relaxed text-lg">
+                                                    "{section.rephrased}"
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="pt-6 border-t border-white/5">
+                                            <div className="flex items-center gap-2 text-[0.65rem] font-black uppercase tracking-widest text-indigo-400 mb-2">
+                                                <TrendingUp className="w-3 h-3" />
+                                                Why this is better
+                                            </div>
+                                            <p className="text-slate-400 text-sm leading-relaxed">
+                                                {section.explanation}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}

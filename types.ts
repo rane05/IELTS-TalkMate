@@ -89,19 +89,42 @@ export interface SessionHistory {
   scratchpadNotes?: string;
 }
 
+export interface UserBadge {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlockedAt: number;
+}
+
 export interface SessionStats {
   averageBand: number;
-  fluencyScore: number; // 0-100 derived
-  grammarScore: number; // 0-100 derived
+  fluencyScore: number;
+  grammarScore: number;
   pronunciationScore: number;
   vocabularyScore: number;
   totalSessions: number;
-  totalPracticeTime: number; // minutes
+  totalPracticeTime: number;
   recentAttempts: { date: string; band: number }[];
   sessions: SessionHistory[];
   vocabularyBank: VocabularyItem[];
   weakAreas: string[];
   strongAreas: string[];
+
+  // Advanced Analytics & Gamification
+  xp: number;
+  level: number;
+  streak: number;
+  lastActive: number;
+  badges: UserBadge[];
+  readinessScore: number; // 0-100
+  predictiveBand: number;
+  moduleBreakdown: {
+    listening: number; // 0-9
+    reading: number;
+    writing: number;
+    speaking: number;
+  };
 }
 
 export interface ExaminerResponse {

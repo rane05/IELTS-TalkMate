@@ -14,8 +14,13 @@ import {
     Target,
     Users,
     ArrowUpRight,
-    Sparkles
+    Sparkles,
+    Flame,
+    Award,
+    TrendingUp,
+    CheckCircle2
 } from 'lucide-react';
+import { SessionStats } from '../types';
 
 export type ModuleName = 'speaking' | 'reading' | 'writing' | 'listening' | 'vocabulary' | 'mocktest' | 'resources' | 'analytics';
 
@@ -49,10 +54,8 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
             onClick={onClick}
             className="group relative bg-white/40 backdrop-blur-xl rounded-[2.5rem] p-8 border border-white/40 hover:border-indigo-500/50 shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 cursor-pointer overflow-hidden flex flex-col h-full"
         >
-            {/* Hover Gradient Overlay */}
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
 
-            {/* Content Container */}
             <div className="relative z-10 flex flex-col h-full">
                 <div className="flex items-start justify-between mb-8">
                     <div className={`p-4 bg-gradient-to-br ${gradient} rounded-2xl shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform duration-500`}>
@@ -102,181 +105,147 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 
 interface ModuleNavigationProps {
     onSelectModule: (module: ModuleName) => void;
-    stats?: {
-        speaking?: { sessions: number; band: number };
-        reading?: { attempts: number; score: number };
-        writing?: { attempts: number; band: number };
-        listening?: { attempts: number; score: number };
-        vocabulary?: { wordsLearned: number };
-    };
+    stats: SessionStats;
 }
 
-export const ModuleNavigation: React.FC<ModuleNavigationProps> = ({ onSelectModule, stats = {} }) => {
+export const ModuleNavigation: React.FC<ModuleNavigationProps> = ({ onSelectModule, stats }) => {
     const modules = [
-        {
-            name: 'speaking' as ModuleName,
-            title: 'Speaking',
-            description: 'AI-powered speaking practice with real-time feedback and band score estimation',
-            icon: <Mic />,
-            gradient: 'from-blue-600 to-indigo-600',
-            color: 'indigo',
-            stats: stats.speaking ? {
-                label: 'Performance',
-                value: `Band ${stats.speaking.band}`
-            } : undefined
-        },
-        {
-            name: 'reading' as ModuleName,
-            title: 'Reading',
-            description: 'Practice with authentic passages, instant scoring, and detailed explanations',
-            icon: <BookOpen />,
-            gradient: 'from-indigo-600 to-violet-600',
-            color: 'blue',
-            stats: stats.reading ? {
-                label: 'Avg Score',
-                value: `${stats.reading.score}%`
-            } : undefined,
-            isNew: true
-        },
-        {
-            name: 'writing' as ModuleName,
-            title: 'Writing',
-            description: 'Task 1 & 2 practice with AI feedback on grammar, coherence, and vocabulary',
-            icon: <PenTool />,
-            gradient: 'from-violet-600 to-fuchsia-600',
-            color: 'green',
-            stats: stats.writing ? {
-                label: 'Proficiency',
-                value: `Band ${stats.writing.band}`
-            } : undefined,
-            isNew: true
-        },
-        {
-            name: 'listening' as ModuleName,
-            title: 'Listening',
-            description: 'All 4 sections with audio playback, transcripts, and answer checking',
-            icon: <Headphones />,
-            gradient: 'from-emerald-600 to-teal-600',
-            color: 'orange',
-            stats: stats.listening ? {
-                label: 'Accuracy',
-                value: `${stats.listening.score}%`
-            } : undefined,
-            isNew: true
-        },
-        {
-            name: 'vocabulary' as ModuleName,
-            title: 'Vocabulary',
-            description: 'Flashcards, word lists, and games to build your IELTS vocabulary',
-            icon: <BookMarked />,
-            gradient: 'from-amber-600 to-orange-600',
-            color: 'pink',
-            stats: stats.vocabulary ? {
-                label: 'Lexicon',
-                value: `${stats.vocabulary.wordsLearned} Words`
-            } : undefined,
-            isNew: true
-        },
-        {
-            name: 'mocktest' as ModuleName,
-            title: 'Mock Tests',
-            description: 'Full IELTS simulation with all 4 modules and comprehensive reports',
-            icon: <Trophy />,
-            gradient: 'from-rose-600 to-pink-600',
-            color: 'amber',
-            isNew: true
-        },
-        {
-            name: 'resources' as ModuleName,
-            title: 'Study Kit',
-            description: 'Tips, strategies, sample answers, and downloadable materials',
-            icon: <BookMarked />,
-            gradient: 'from-cyan-600 to-blue-600',
-            color: 'violet',
-            isNew: true
-        },
-        {
-            name: 'analytics' as ModuleName,
-            title: 'Analytics',
-            description: 'Detailed insights into your performance across all modules',
-            icon: <BarChart3 />,
-            gradient: 'from-slate-700 to-slate-900',
-            color: 'teal'
-        }
+        { name: 'speaking' as ModuleName, title: 'Speaking', description: 'AI interview simulation with real-time feedback', icon: <Mic />, gradient: 'from-blue-600 to-indigo-600', color: 'blue', stats: { label: 'Last Band', value: stats.moduleBreakdown.speaking } },
+        { name: 'reading' as ModuleName, title: 'Reading', description: 'Academic passages with adaptive difficulty', icon: <BookOpen />, gradient: 'from-indigo-600 to-violet-600', color: 'indigo', isNew: true, stats: { label: 'Accuracy', value: stats.moduleBreakdown.reading } },
+        { name: 'writing' as ModuleName, title: 'Writing', description: 'Detailed AI grading and Band 9 rephrasing', icon: <PenTool />, gradient: 'from-violet-600 to-fuchsia-600', color: 'violet', isNew: true, stats: { label: 'Consistency', value: stats.moduleBreakdown.writing } },
+        { name: 'listening' as ModuleName, title: 'Listening', description: 'Authentic audio with transcript analysis', icon: <Headphones />, gradient: 'from-emerald-600 to-teal-600', color: 'emerald', isNew: true, stats: { label: 'Speed Score', value: stats.moduleBreakdown.listening } },
+        { name: 'vocabulary' as ModuleName, title: 'Vocabulary', description: 'Spaced-repetition word bank for Band 8+', icon: <BookMarked />, gradient: 'from-amber-600 to-orange-600', color: 'amber', isNew: true },
+        { name: 'mocktest' as ModuleName, title: 'Mock Tests', description: 'Full simulation with predictive reports', icon: <Trophy />, gradient: 'from-rose-600 to-pink-600', color: 'rose', isNew: true },
+        { name: 'resources' as ModuleName, title: 'Study Kit', description: 'Strategy guides and downloadable materials', icon: <BookMarked />, gradient: 'from-cyan-600 to-blue-600', color: 'cyan', isNew: true },
+        { name: 'analytics' as ModuleName, title: 'Success Lab', description: 'Deep performance trends and readiness radar', icon: <BarChart3 />, gradient: 'from-slate-700 to-slate-900', color: 'slate' }
     ];
 
-    const totalPractice = (stats.speaking?.sessions || 0) + (stats.reading?.attempts || 0) + (stats.writing?.attempts || 0) + (stats.listening?.attempts || 0);
+    const levelProgress = (stats.xp % 1000) / 10; // XP per level = 1000
 
     return (
         <div className="relative min-h-screen">
-            {/* Background Decorative Elements */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px] animate-pulse" />
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px] animate-blob" />
                 <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] animation-delay-2000" />
             </div>
 
             <div className="relative z-10 max-w-7xl mx-auto px-6 py-12 lg:py-20 space-y-20">
 
-                {/* Hero / Header Section */}
-                <div className="flex flex-col lg:flex-row items-end justify-between gap-12">
-                    <div className="space-y-6 max-w-2xl">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-full border border-indigo-100 mb-2">
-                            <div className="flex -space-x-2">
-                                {[1, 2, 3].map(i => (
-                                    <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-slate-200 overflow-hidden">
-                                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i + 10}`} alt="user" />
+                {/* Hero / Quick Success Dashboard */}
+                <div className="grid lg:grid-cols-3 gap-12">
+                    <div className="lg:col-span-2 space-y-8">
+                        <div className="space-y-4">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50/50 rounded-full border border-indigo-100/50 backdrop-blur-sm">
+                                <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
+                                <span className="text-xs font-black text-indigo-700 uppercase tracking-widest">{stats.streak} DAY STREAK</span>
+                            </div>
+                            <h1 className="text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] tracking-tight">
+                                Success Lab <br /><span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Overview.</span>
+                            </h1>
+                        </div>
+
+                        {/* XP Progress Bar */}
+                        <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="space-y-1">
+                                    <h3 className="text-lg font-black text-slate-900">Level {stats.level}</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{1000 - (stats.xp % 1000)} XP to next level</p>
+                                </div>
+                                <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 font-black text-indigo-600">
+                                    {stats.xp} Total XP
+                                </div>
+                            </div>
+                            <div className="relative h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-1000 ease-out"
+                                    style={{ width: `${levelProgress}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Badges Quick View */}
+                        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                            {stats.badges.map((badge) => (
+                                <div key={badge.id} className="flex-shrink-0 flex items-center gap-3 px-6 py-4 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-indigo-500 transition-colors">
+                                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                        <Award className="w-6 h-6" />
+                                    </div>
+                                    <div className="pr-4">
+                                        <p className="text-sm font-black text-slate-900">{badge.title}</p>
+                                        <p className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-widest">Achievement</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Readiness Radar / Stat Card */}
+                    <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden flex flex-col justify-between">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-[80px] -mr-10 -mt-10" />
+
+                        <div className="relative z-10 space-y-8">
+                            <div className="flex items-center justify-between font-black uppercase tracking-widest text-[0.65rem] text-slate-400">
+                                <span>Exam Readiness</span>
+                                <span className="text-indigo-400">Target: 8.5</span>
+                            </div>
+
+                            <div className="flex flex-col items-center justify-center space-y-4">
+                                <div className="relative w-40 h-40 flex items-center justify-center bg-white/5 rounded-full border-4 border-indigo-500/30">
+                                    <div className="absolute inset-4 rounded-full border-2 border-indigo-400/20" />
+                                    <div className="text-center group">
+                                        <p className="text-5xl font-black text-white group-hover:scale-110 transition-transform">{stats.readinessScore}%</p>
+                                        <p className="text-[0.6rem] font-bold text-indigo-400 uppercase tracking-widest mt-1">Ready to Exam</p>
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-sm font-bold text-slate-300">Predicted Band</p>
+                                    <p className="text-2xl font-black text-white">{stats.predictiveBand}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {Object.entries(stats.moduleBreakdown).map(([key, val]) => (
+                                    <div key={key} className="flex flex-col gap-1.5">
+                                        <div className="flex justify-between text-[0.6rem] uppercase font-black text-slate-400">
+                                            <span>{key}</span>
+                                            <span className="text-white">Band {val}</span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full bg-gradient-to-r rounded-full transition-all duration-1000 ${key === 'speaking' ? 'from-indigo-500 to-blue-500' :
+                                                    key === 'writing' ? 'from-purple-500 to-pink-500' :
+                                                        key === 'reading' ? 'from-emerald-500 to-teal-500' :
+                                                            'from-amber-500 to-orange-500'
+                                                    }`}
+                                                style={{ width: `${(val / 9) * 100}%` }}
+                                            />
+                                        </div>
                                     </div>
                                 ))}
                             </div>
-                            <span className="text-xs font-bold text-indigo-700 uppercase tracking-widest pl-2">Join 12k+ Active Learners</span>
                         </div>
-                        <h1 className="text-6xl lg:text-7xl font-black text-slate-900 leading-[1.1] tracking-tight">
-                            Master Your <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">Future.</span>
-                        </h1>
-                        <p className="text-xl text-slate-500 font-medium leading-relaxed max-w-xl">
-                            The ultimate AI-powered environment for your IELTS journey. Personalized training, real-time feedback, and measurable results.
-                        </p>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 w-full lg:w-auto">
-                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between h-40 group hover:border-indigo-500 transition-colors cursor-default">
-                            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                <Target className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="text-3xl font-black text-slate-900">{stats.speaking?.band || '7.5'}</p>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Avg Band Score</p>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between h-40 group hover:border-purple-500 transition-colors cursor-default">
-                            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 mb-4 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                                <Zap className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="text-3xl font-black text-slate-900">{totalPractice}</p>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Global Rank #{Math.max(1, 100 - totalPractice)}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Grid Header */}
-                <div className="flex items-center justify-between border-b border-slate-200 pb-8">
-                    <div>
-                        <h2 className="text-3xl font-black text-slate-900">Training Modules</h2>
-                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mt-1">Select a module to begin practice</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="hidden md:flex items-center gap-1 text-slate-400 text-xs font-bold uppercase tracking-widest pr-4 border-r border-slate-200">
-                            Sorted by popularity
-                        </div>
-                        <button className="p-3 hover:bg-slate-100 rounded-xl transition-colors">
-                            <Settings className="w-5 h-5 text-slate-400" />
+                        <button className="relative z-10 mt-8 w-full py-4 bg-indigo-600 rounded-2xl font-black hover:bg-indigo-500 transition-colors flex items-center justify-center gap-2 group">
+                            Deep Analysis
+                            <ArrowUpRight className="w-4 h-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                         </button>
                     </div>
                 </div>
 
-                {/* Dynamic Module Grid */}
+                {/* Modules Header */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-8">
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Focus Areas</h2>
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mt-1">AI-Recommended for your Level {stats.level}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="hidden sm:flex px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-black uppercase tracking-widest border border-emerald-100 items-center gap-2">
+                            <CheckCircle2 className="w-3 h-3" /> All Modules Synced
+                        </div>
+                    </div>
+                </div>
+
+                {/* Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                     {modules.map((module) => (
                         <ModuleCard
@@ -285,7 +254,7 @@ export const ModuleNavigation: React.FC<ModuleNavigationProps> = ({ onSelectModu
                             title={module.title}
                             description={module.description}
                             icon={module.icon}
-                            color={module.color}
+                            color={module.color || 'indigo'}
                             gradient={module.gradient}
                             onClick={() => onSelectModule(module.name)}
                             stats={module.stats}
@@ -294,24 +263,24 @@ export const ModuleNavigation: React.FC<ModuleNavigationProps> = ({ onSelectModu
                     ))}
                 </div>
 
-                {/* Call to action foot bar */}
+                {/* Foot CTA */}
                 <div className="bg-slate-900 rounded-[3rem] p-12 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-[100px] -mr-20 -mt-20 group-hover:scale-110 transition-transform duration-1000" />
                     <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12 text-center md:text-left">
                         <div className="space-y-4">
                             <h3 className="text-4xl font-black text-white leading-tight">
-                                Ready for the <br /> <span className="text-indigo-400">Main Event?</span>
+                                Push your limits <br /> <span className="text-indigo-400">to Band 9.</span>
                             </h3>
                             <p className="text-slate-400 font-medium max-w-sm">
-                                Take a full simulation and get your comprehensive performance report in 120 minutes.
+                                Join the advanced Elite track and get daily challenges mentored by AI examiner bots.
                             </p>
                         </div>
                         <button
                             onClick={() => onSelectModule('mocktest')}
                             className="px-10 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-indigo-500/20 group/btn flex items-center gap-3"
                         >
-                            Take Mock Test
-                            <ChevronRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                            Explore Elite
+                            <TrendingUp className="w-5 h-5 group-hover/btn:translate-y-[-2px] transition-transform" />
                         </button>
                     </div>
                 </div>

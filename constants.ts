@@ -91,8 +91,6 @@ export const MOCK_STATS: SessionStats = {
   totalSessions: 12,
   totalPracticeTime: 145,
   recentAttempts: [
-    { date: '2023-10-25', band: 5.5 },
-    { date: '2023-10-28', band: 6.0 },
     { date: '2023-11-02', band: 6.0 },
     { date: '2023-11-05', band: 6.5 },
     { date: '2023-11-10', band: 7.0 },
@@ -100,5 +98,23 @@ export const MOCK_STATS: SessionStats = {
   sessions: [],
   vocabularyBank: [],
   weakAreas: ['Grammar - Complex Sentences', 'Pronunciation - Word Stress'],
-  strongAreas: ['Fluency', 'Vocabulary Range']
+  strongAreas: ['Fluency', 'Vocabulary Range'],
+
+  // Gamification
+  xp: 4500,
+  level: 12,
+  streak: 5,
+  lastActive: Date.now(),
+  badges: [
+    { id: '1', title: 'Early Bird', description: 'Practice 3 days in a row before 8 AM', icon: 'Sun', unlockedAt: Date.now() },
+    { id: '2', title: 'Polyglot', description: 'Learn 50 new academic words', icon: 'BookOpen', unlockedAt: Date.now() }
+  ],
+  readinessScore: 78,
+  predictiveBand: 7.5,
+  moduleBreakdown: {
+    listening: 7.5,
+    reading: 8.0,
+    writing: 6.5,
+    speaking: 7.0
+  }
 };

@@ -68,7 +68,14 @@ Provide a comprehensive analysis in the following JSON format:
   },
   "overallBand": <number 0-9 (average of all scores)>,
   "wordCount": <number>,
-  "estimatedTime": <estimated time in seconds>
+  "estimatedTime": <estimated time in seconds>,
+  "band9RephrasedSections": [
+    {
+      "original": "<a specific sentence or section from student answer>",
+      "rephrased": "<how a Band 9 candidate would write it>",
+      "explanation": "<explain the specific improvements made in terms of grammar or vocabulary>"
+    }
+  ]
 }
 
 Be specific, constructive, and encouraging. Identify both strengths and areas for improvement.`;

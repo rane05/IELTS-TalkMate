@@ -66,6 +66,11 @@ export interface WritingFeedback {
     overallBand: number;
     wordCount: number;
     estimatedTime: number;
+    band9RephrasedSections?: Array<{
+        original: string;
+        rephrased: string;
+        explanation: string;
+    }>;
 }
 
 export interface WritingAttempt {

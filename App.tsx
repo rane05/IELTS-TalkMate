@@ -20,6 +20,7 @@ import { ListeningResults } from './components/listening/ListeningResults';
 import { MockTestDashboard } from './components/mocktest/MockTestDashboard';
 import { MockTestEngine } from './components/mocktest/MockTestEngine';
 import { MockTestResults } from './components/mocktest/MockTestResults';
+import { VirtualExaminer } from './components/VirtualExaminer';
 import { processUserAudio } from './services/geminiService';
 import { processUserAudioStreaming, StreamingCallbacks } from './services/streamingService';
 import { analyzeWriting } from './services/writingService';
@@ -31,7 +32,7 @@ import { ListeningTest } from './types/listening';
 import { MockTestPackage, MockTestSession } from './types/mocktest';
 import { SAMPLE_VOCABULARY } from './data/vocabularyData';
 import { PART_DESCRIPTIONS, MOCK_STATS } from './constants';
-import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare, BookOpen, Home, Settings } from 'lucide-react';
+import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare, BookOpen, Home, Settings, Sparkles } from 'lucide-react';
 
 // Simple helper to convert Blob to base64
 const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -67,6 +68,11 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingTranscript, setStreamingTranscript] = useState("");
   const [streamingExaminerText, setStreamingExaminerText] = useState("");
+  const [isActuallySpeaking, setIsActuallySpeaking] = useState(false);
+
+  // Immersive Speaking States
+  const [fluencyScore, setFluencyScore] = useState(85);
+  const [fillerCount, setFillerCount] = useState(0);
 
   // Stats & History
   const [stats, setStats] = useState<SessionStats>(MOCK_STATS);
@@ -140,6 +146,11 @@ export default function App() {
     const voices = window.speechSynthesis.getVoices();
     const gbVoice = voices.find(v => v.lang.includes('GB'));
     if (gbVoice) utterance.voice = gbVoice;
+
+    utterance.onstart = () => setIsActuallySpeaking(true);
+    utterance.onend = () => setIsActuallySpeaking(false);
+    utterance.onerror = () => setIsActuallySpeaking(false);
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -181,6 +192,18 @@ export default function App() {
           setConversation(prev => [...prev, { id: Date.now().toString(), role: 'examiner', text: res.examinerSpeech, feedback: res.feedback, timestamp: Date.now() }]);
           setExaminerText(res.examinerSpeech);
           speak(res.examinerSpeech);
+
+          // Simulation: update fluency based on feedback
+          if (res.feedback) {
+            if (res.feedback.pronunciation) {
+              setFluencyScore(prev => Math.min(100, Math.max(0, res.feedback!.pronunciation!.overallScore + Math.floor(Math.random() * 10))));
+            }
+            if (res.feedback.fillerWordCount !== undefined) {
+              setFillerCount(res.feedback.fillerWordCount);
+            } else {
+              setFillerCount(prev => Math.max(0, 10 - Math.floor(res.feedback!.estimatedBand)));
+            }
+          }
         },
         onError: () => { setIsProcessing(false); setIsStreaming(false); }
       };
@@ -195,7 +218,7 @@ export default function App() {
 
   const renderContent = () => {
     if (currentModule === 'home') {
-      return <ModuleNavigation onSelectModule={(m) => setCurrentModule(m)} stats={{ speaking: { sessions: stats.totalSessions, band: stats.averageBand }, vocabulary: { wordsLearned: stats.vocabularyBank.length } }} />;
+      return <ModuleNavigation onSelectModule={(m) => setCurrentModule(m)} stats={stats} />;
     }
 
     if (currentModule === 'speaking') {
@@ -205,17 +228,38 @@ export default function App() {
         return (
           <div className="max-w-4xl mx-auto p-4 space-y-6">
             {/* Status Bar */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide">Current Section</h2>
-                <p className="font-semibold text-indigo-700">{PART_DESCRIPTIONS[currentPart] || "Introduction"}</p>
+            <div className="bg-white/40 backdrop-blur-xl rounded-3xl p-6 shadow-sm border border-white/60 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-indigo-100 rounded-2xl">
+                  <Sparkles className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-[0.6rem] font-black text-slate-400 uppercase tracking-widest">Section</h2>
+                  <p className="font-black text-slate-900">{PART_DESCRIPTIONS[currentPart] || "Introduction"}</p>
+                </div>
               </div>
+
               {(currentPart === ExamPart.PART_2_PREP || currentPart === ExamPart.PART_2_SPEAK) && (
-                <div className={`text-2xl font-mono font-bold ${timer < 10 ? 'text-red-500' : 'text-gray-800'}`}>
-                  {formatTime(timer)}
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-[0.6rem] font-black text-slate-400 uppercase tracking-widest">Remaining</p>
+                    <div className={`text-2xl font-black ${timer < 10 ? 'text-rose-500 animate-pulse' : 'text-slate-900'}`}>
+                      {formatTime(timer)}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
+
+            <VirtualExaminer
+              personality={currentPersonality}
+              isListening={false} // AudioRecorder handles this visually, but we can pass state if needed
+              isThinking={isProcessing && !isActuallySpeaking}
+              isSpeaking={isActuallySpeaking}
+              examinerText={isStreaming && streamingExaminerText ? streamingExaminerText : examinerText}
+              fluencyScore={fluencyScore}
+              fillerCount={fillerCount}
+            />
 
             {/* Part 2 Scratchpad */}
             {showScratchpad && (
@@ -246,100 +290,49 @@ export default function App() {
               </div>
             )}
 
-            {/* Conversation Area */}
-            <div className="space-y-6">
-              {/* Examiner's Latest Message */}
-              <div className="bg-white rounded-xl shadow-lg border border-indigo-100 p-6 relative">
-                <div className="absolute -top-3 -left-3 bg-indigo-600 text-white p-2 rounded-full border-4 border-gray-50">
-                  <Volume2 className="w-6 h-6" />
-                </div>
-                <div className="ml-6">
-                  <p className="text-lg text-gray-800 leading-relaxed font-medium">
-                    {isStreaming && streamingExaminerText ? (
-                      <>
-                        {streamingExaminerText}
-                        <span className="inline-block w-2 h-5 bg-indigo-600 ml-1 animate-pulse"></span>
-                      </>
-                    ) : (
-                      examinerText
-                    )}
-                  </p>
-                  {isStreaming && !streamingExaminerText && (
-                    <div className="flex items-center gap-2 text-indigo-600">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                      </div>
-                      <span className="text-sm font-medium">Analyzing your response...</span>
+            {/* User Transcript Display */}
+            {isStreaming && streamingTranscript && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200 animate-fade-in">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="w-5 h-5 text-purple-600 mt-1" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-purple-900 mb-1 flex items-center gap-2">
+                      You said:
+                      <span className="inline-block w-1.5 h-1.5 bg-purple-600 rounded-full animate-pulse"></span>
                     </div>
+                    <p className="text-gray-800 italic">"{streamingTranscript}"</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!isStreaming && conversation.filter(t => t.role === 'user' && t.text).slice(-1).map((turn) => (
+              <div key={turn.id} className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="w-5 h-5 text-purple-600 mt-1" />
+                  <div>
+                    <div className="text-sm font-semibold text-purple-900 mb-1">You said:</div>
+                    <p className="text-gray-800 italic">"{turn.text}"</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* History & Feedback */}
+            <div className="space-y-8">
+              {conversation.filter(t => t.role === 'examiner' && t.feedback).map((turn) => (
+                <div key={turn.id} className="opacity-90 hover:opacity-100 transition-opacity">
+                  {turn.feedback && (
+                    <FeedbackCard
+                      feedback={turn.feedback}
+                      onSaveVocabulary={handleSaveVocabulary}
+                    />
                   )}
                 </div>
-              </div>
-
-              {/* Streaming User Transcript Display */}
-              {isStreaming && streamingTranscript && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200 animate-fade-in">
-                  <div className="flex items-start gap-3">
-                    <MessageSquare className="w-5 h-5 text-purple-600 mt-1" />
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-purple-900 mb-1 flex items-center gap-2">
-                        You said:
-                        <span className="inline-block w-1.5 h-1.5 bg-purple-600 rounded-full animate-pulse"></span>
-                      </div>
-                      <p className="text-gray-800 italic">"{streamingTranscript}"</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* User Transcript Display (Final) */}
-              {!isStreaming && conversation.filter(t => t.role === 'user' && t.text).slice(-1).map((turn) => (
-                <div key={turn.id} className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
-                  <div className="flex items-start gap-3">
-                    <MessageSquare className="w-5 h-5 text-purple-600 mt-1" />
-                    <div>
-                      <div className="text-sm font-semibold text-purple-900 mb-1">You said:</div>
-                      <p className="text-gray-800 italic">"{turn.text}"</p>
-                    </div>
-                  </div>
-                </div>
               ))}
-
-              {/* History & Feedback */}
-              <div className="space-y-8">
-                {conversation.filter(t => t.role === 'examiner' && t.feedback).map((turn) => (
-                  <div key={turn.id} className="opacity-90 hover:opacity-100 transition-opacity">
-                    {turn.feedback && (
-                      <FeedbackCard
-                        feedback={turn.feedback}
-                        onSaveVocabulary={handleSaveVocabulary}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div ref={conversationEndRef} />
             </div>
 
-            {/* Controls (Sticky Bottom) */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-200 p-4">
-              <div className="max-w-4xl mx-auto flex flex-col items-center">
-                {currentPart === ExamPart.COMPLETED ? (
-                  <div className="text-center space-y-3">
-                    <h3 className="text-xl font-bold text-gray-900">Test Completed! 🎉</h3>
-                    <button onClick={() => setView('dashboard')} className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-2 rounded-full hover:shadow-lg transition-all">Return to Dashboard</button>
-                  </div>
-                ) : (
-                  <AudioRecorder
-                    onRecordingComplete={handleAudioStop}
-                    isProcessing={isProcessing}
-                    disabled={isTimerRunning && currentPart === ExamPart.PART_2_PREP}
-                  />
-                )}
-              </div>
-            </div>
+            <div ref={conversationEndRef} />
           </div>
         );
       }
@@ -430,7 +423,6 @@ export default function App() {
       {/* Navbar - Premium Floating Style */}
       <nav className="fixed top-6 left-1/2 -translate-x-1/2 w-[90%] max-w-7xl z-[100] transition-all duration-500">
         <div className="bg-white/70 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] rounded-[2rem] px-8 py-3 flex items-center justify-between">
-          {/* Logo Section */}
           <div
             className="flex items-center gap-3 cursor-pointer group"
             onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
@@ -451,7 +443,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation & Profile */}
           <div className="flex items-center gap-6">
             <div className="hidden md:flex items-center gap-2 pr-6 border-r border-slate-200/50">
               {currentModule !== 'home' && (
@@ -491,6 +482,34 @@ export default function App() {
       <main className="relative z-10 pt-32 pb-20">
         {renderContent()}
       </main>
+
+      {/* Sticky Bottom Controls for Speaking only when in practice view */}
+      {currentModule === 'speaking' && view === 'practice' && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200/50 p-6 z-50">
+          <div className="max-w-4xl mx-auto flex flex-col items-center">
+            {currentPart === ExamPart.COMPLETED ? (
+              <div className="text-center space-y-4">
+                <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold">
+                  <Sparkles className="w-6 h-6" />
+                  <span>Session Analyzed Successfully!</span>
+                </div>
+                <button
+                  onClick={() => setView('dashboard')}
+                  className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-8 py-3 rounded-2xl font-black shadow-lg hover:shadow-indigo-500/20 transition-all uppercase tracking-widest text-xs"
+                >
+                  Return to Dashboard
+                </button>
+              </div>
+            ) : (
+              <AudioRecorder
+                onRecordingComplete={handleAudioStop}
+                isProcessing={isProcessing}
+                disabled={(isTimerRunning && currentPart === ExamPart.PART_2_PREP) || isStreaming}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {showHistory && <SessionHistoryView sessions={stats.sessions} onViewSession={setSelectedSession} onClose={() => setShowHistory(false)} />}
       {selectedSession && <SessionDetailView session={selectedSession} onClose={() => setSelectedSession(null)} onExportPDF={handleExportPDF} />}
