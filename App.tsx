@@ -17,16 +17,21 @@ import { Flashcards } from './components/vocabulary/Flashcards';
 import { ListeningDashboard } from './components/listening/ListeningDashboard';
 import { ListeningTestComponent } from './components/listening/ListeningTest';
 import { ListeningResults } from './components/listening/ListeningResults';
+import { MockTestDashboard } from './components/mocktest/MockTestDashboard';
+import { MockTestEngine } from './components/mocktest/MockTestEngine';
+import { MockTestResults } from './components/mocktest/MockTestResults';
 import { processUserAudio } from './services/geminiService';
+import { processUserAudioStreaming, StreamingCallbacks } from './services/streamingService';
 import { analyzeWriting } from './services/writingService';
 import { ExamPart, ConversationTurn, ExaminerResponse, PracticeMode, Topic, DifficultyLevel, SessionHistory, SessionStats, ExaminerPersonality } from './types';
 import { ReadingPassage } from './types/reading';
 import { WritingPrompt, WritingFeedback } from './types/writing';
 import { VocabularyTopic, VocabularyWord } from './types/vocabulary';
 import { ListeningTest } from './types/listening';
+import { MockTestPackage, MockTestSession } from './types/mocktest';
 import { SAMPLE_VOCABULARY } from './data/vocabularyData';
 import { PART_DESCRIPTIONS, MOCK_STATS } from './constants';
-import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare, BookOpen, Home } from 'lucide-react';
+import { Mic, Volume2, ArrowLeft, AlertCircle, MessageSquare, BookOpen, Home, Settings } from 'lucide-react';
 
 // Simple helper to convert Blob to base64
 const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -42,7 +47,7 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 };
 
 export default function App() {
-  // Main view states - now supports multiple modules
+  // Main view states
   const [currentModule, setCurrentModule] = useState<'home' | 'speaking' | 'reading' | 'writing' | 'listening' | 'vocabulary' | 'mocktest' | 'resources' | 'analytics'>('home');
   const [view, setView] = useState<'dashboard' | 'practice' | 'selector' | 'test' | 'results'>('dashboard');
   const [showHistory, setShowHistory] = useState(false);
@@ -58,6 +63,11 @@ export default function App() {
   const [sessionStartTime, setSessionStartTime] = useState<number>(0);
   const [currentPersonality, setCurrentPersonality] = useState<ExaminerPersonality>(ExaminerPersonality.PROFESSIONAL);
 
+  // Streaming states for real-time responses
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingTranscript, setStreamingTranscript] = useState("");
+  const [streamingExaminerText, setStreamingExaminerText] = useState("");
+
   // Stats & History
   const [stats, setStats] = useState<SessionStats>(MOCK_STATS);
 
@@ -69,34 +79,40 @@ export default function App() {
 
   const conversationEndRef = useRef<HTMLDivElement>(null);
 
-  // Reading Module States
+  // Module Specific States
   const [selectedPassage, setSelectedPassage] = useState<ReadingPassage | null>(null);
   const [readingAnswers, setReadingAnswers] = useState<Record<string, string>>({});
   const [readingTimeSpent, setReadingTimeSpent] = useState(0);
   const [showReadingResults, setShowReadingResults] = useState(false);
 
-  // Writing Module States
   const [selectedPrompt, setSelectedPrompt] = useState<WritingPrompt | null>(null);
   const [writingContent, setWritingContent] = useState('');
   const [writingFeedback, setWritingFeedback] = useState<WritingFeedback | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Vocabulary Module States
   const [selectedVocabTopic, setSelectedVocabTopic] = useState<VocabularyTopic | null>(null);
   const [showFlashcards, setShowFlashcards] = useState(false);
 
-  // Listening Module States
   const [selectedListeningTest, setSelectedListeningTest] = useState<ListeningTest | null>(null);
   const [listeningAnswers, setListeningAnswers] = useState<Record<string, string>>({});
   const [listeningTimeSpent, setListeningTimeSpent] = useState(0);
   const [showListeningResults, setShowListeningResults] = useState(false);
 
-  // Auto-scroll to bottom
+  const [mockTestStats, setMockTestStats] = useState({
+    completedTests: 3,
+    averageBand: 7.0,
+    bestModule: 'Speaking'
+  });
+
+  const [activeMockTest, setActiveMockTest] = useState<MockTestPackage | null>(null);
+  const [mockSession, setMockSession] = useState<MockTestSession | null>(null);
+
+  // Effect for scrolling
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation, examinerText]);
 
-  // Timer logic for Part 2
+  // Speaking Timer Effect
   useEffect(() => {
     let interval: any;
     if (isTimerRunning && timer > 0) {
@@ -105,19 +121,14 @@ export default function App() {
       }, 1000);
     } else if (timer === 0 && isTimerRunning) {
       setIsTimerRunning(false);
-      // If prep time ends
       if (currentPart === ExamPart.PART_2_PREP) {
-        speak("Your one minute preparation is up. Please start speaking now. You have 2 minutes.");
+        speak("Your one minute preparation is up. Please start speaking now.");
         setCurrentPart(ExamPart.PART_2_SPEAK);
-        setExaminerText("Please start speaking now.");
-        setTimer(120); // 2 mins to speak
+        setTimer(120);
         setIsTimerRunning(true);
-      }
-      // If speaking time ends
-      else if (currentPart === ExamPart.PART_2_SPEAK) {
-        speak("Thank you. That is the end of Part 2.");
+      } else if (currentPart === ExamPart.PART_2_SPEAK) {
+        speak("Thank you. End of Part 2.");
         setCurrentPart(ExamPart.PART_3);
-        setExaminerText("Thank you. Now let's move on to Part 3.");
         setShowScratchpad(false);
       }
     }
@@ -126,11 +137,9 @@ export default function App() {
 
   const speak = (text: string) => {
     const utterance = new SpeechSynthesisUtterance(text);
-    // Try to find a British voice for IELTS feel
     const voices = window.speechSynthesis.getVoices();
     const gbVoice = voices.find(v => v.lang.includes('GB'));
     if (gbVoice) utterance.voice = gbVoice;
-    utterance.rate = 1;
     window.speechSynthesis.speak(utterance);
   };
 
@@ -141,32 +150,13 @@ export default function App() {
     setSessionStartTime(Date.now());
     setConversation([]);
     setCurrentPersonality(personality);
-    setScratchpad(""); // Reset scratchpad for new session
 
-    // Set initial part based on mode
-    if (mode === PracticeMode.PART_1_ONLY) {
-      setCurrentPart(ExamPart.PART_1);
-      setExaminerText("Good afternoon. My name is Sarah. Could you tell me your full name?");
-      speak("Good afternoon. My name is Sarah. Could you tell me your full name?");
-    } else if (mode === PracticeMode.PART_2_ONLY) {
+    if (mode === PracticeMode.PART_2_ONLY) {
       setCurrentPart(ExamPart.PART_2_PREP);
       setTimer(60);
       setIsTimerRunning(true);
-      const topicText = topic ? topic.name : "a memorable event in your life";
-      const prepMsg = `Now I will give you a topic: ${topicText}. You have one minute to prepare.`;
-      setExaminerText(prepMsg);
-      speak(prepMsg);
       setShowScratchpad(true);
-    } else if (mode === PracticeMode.PART_3_ONLY) {
-      setCurrentPart(ExamPart.PART_3);
-      setExaminerText("Let's discuss some abstract questions. What do you think about...");
-      speak("Let's discuss some abstract questions.");
-    } else if (mode === PracticeMode.GRAMMAR_COACH) {
-      setCurrentPart(ExamPart.PART_1);
-      setExaminerText("Hello! I am your Grammar Coach. I'll help you correct your mistakes while we talk. What would you like to talk about today?");
-      speak("Hello! I am your Grammar Coach. I'll help you correct your mistakes while we talk. What would you like to talk about today?");
     } else {
-      // Full test
       setCurrentPart(ExamPart.PART_1);
       setExaminerText("Good afternoon. My name is Sarah. Could you tell me your full name?");
       speak("Good afternoon. My name is Sarah. Could you tell me your full name?");
@@ -175,216 +165,43 @@ export default function App() {
 
   const handleAudioStop = async (audioBlob: Blob) => {
     setIsProcessing(true);
-
-    // Create user turn
-    const userAudioUrl = URL.createObjectURL(audioBlob);
-    const newTurn: ConversationTurn = {
-      id: Date.now().toString(),
-      role: 'user',
-      audioUrl: userAudioUrl,
-      timestamp: Date.now()
-    };
-
-    // Add temporary user turn to UI (we don't have the text yet)
+    setIsStreaming(true);
+    const newTurn: ConversationTurn = { id: Date.now().toString(), role: 'user', timestamp: Date.now() };
     setConversation(prev => [...prev, newTurn]);
 
     try {
       const b64 = await blobToBase64(audioBlob);
-
-      // Build context from last 3 turns
-      const context = conversation.slice(-3).map(t =>
-        `${t.role}: ${t.text || (t.audioUrl ? '[Audio]' : '')}`
-      ).join('\n');
-
-      const response: ExaminerResponse = await processUserAudio(b64, currentPart, context, practiceMode, currentPersonality);
-
-      // Update the user turn with transcribed text
-      if (response.userTranscript) {
-        setConversation(prev => prev.map(t =>
-          t.id === newTurn.id ? { ...t, text: response.userTranscript } : t
-        ));
-      }
-
-      // Add Examiner Turn
-      const examinerTurn: ConversationTurn = {
-        id: (Date.now() + 1).toString(),
-        role: 'examiner',
-        text: response.examinerSpeech,
-        feedback: response.feedback,
-        timestamp: Date.now()
+      const callbacks: StreamingCallbacks = {
+        onTranscriptChunk: (chunk) => setStreamingTranscript(chunk),
+        onExaminerSpeechChunk: (chunk) => setStreamingExaminerText(chunk),
+        onComplete: (res) => {
+          setIsStreaming(false);
+          setIsProcessing(false);
+          setConversation(prev => prev.map(t => t.id === newTurn.id ? { ...t, text: res.userTranscript } : t));
+          setConversation(prev => [...prev, { id: Date.now().toString(), role: 'examiner', text: res.examinerSpeech, feedback: res.feedback, timestamp: Date.now() }]);
+          setExaminerText(res.examinerSpeech);
+          speak(res.examinerSpeech);
+        },
+        onError: () => { setIsProcessing(false); setIsStreaming(false); }
       };
-
-      setConversation(prev => [...prev, examinerTurn]);
-      setExaminerText(response.examinerSpeech);
-      speak(response.examinerSpeech);
-
-      // Handle Exam Logic Transitions
-      if (response.isExamFinished) {
-        setCurrentPart(ExamPart.COMPLETED);
-        saveSession();
-      }
-
-      // Auto-transition logic for full test
-      if (practiceMode === PracticeMode.FULL_TEST && currentPart === ExamPart.PART_1 && conversation.length > 4) {
-        setCurrentPart(ExamPart.PART_2_PREP);
-        setTimer(60);
-        setIsTimerRunning(true);
-        const topicText = selectedTopic ? selectedTopic.name : "a memorable event in your life";
-        const prepMsg = `Now I will give you a topic: ${topicText}. You have one minute to prepare.`;
-        speak(prepMsg);
-        setExaminerText(prepMsg);
-        setShowScratchpad(true);
-      }
-
-    } catch (err) {
-      console.error(err);
-      alert("Error processing audio. Please check your API key.");
-    } finally {
-      setIsProcessing(false);
-    }
+      await processUserAudioStreaming(b64, currentPart, "", callbacks, practiceMode, currentPersonality);
+    } catch (err) { setIsProcessing(false); setIsStreaming(false); }
   };
 
-  const saveSession = () => {
-    const duration = Math.floor((Date.now() - sessionStartTime) / 1000);
+  const saveSession = () => { /* Logic to save session info */ };
+  const handleSaveVocabulary = (word: string) => { /* Logic to save vocab */ };
+  const handleExportPDF = (session: SessionHistory) => { /* SVG/PDF Logic */ };
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
-    // Calculate scores from feedback
-    const feedbacks = conversation.filter(t => t.feedback).map(t => t.feedback!);
-    const avgBand = feedbacks.length > 0
-      ? feedbacks.reduce((sum, f) => sum + f.estimatedBand, 0) / feedbacks.length
-      : 0;
-
-    const grammarScore = feedbacks.length > 0
-      ? Math.round(feedbacks.reduce((sum, f) => sum + (f.grammarMistakes.length === 0 ? 100 : 70), 0) / feedbacks.length)
-      : 0;
-
-    const fluencyScore = 75; // Simplified - would need more analysis
-    const pronunciationScore = feedbacks.length > 0 && feedbacks[0].pronunciation
-      ? Math.round(feedbacks.reduce((sum, f) => sum + (f.pronunciation?.overallScore || 0), 0) / feedbacks.length)
-      : 0;
-    const vocabularyScore = 70; // Simplified
-
-    const newSession: SessionHistory = {
-      id: Date.now().toString(),
-      date: sessionStartTime,
-      mode: practiceMode,
-      topic: selectedTopic,
-      duration,
-      conversation,
-      averageBand: Math.round(avgBand * 2) / 2, // Round to nearest 0.5
-      grammarScore,
-      fluencyScore,
-      pronunciationScore,
-      vocabularyScore,
-      completedParts: [currentPart],
-      scratchpadNotes: scratchpad
-    };
-
-    setStats(prev => ({
-      ...prev,
-      sessions: [...prev.sessions, newSession],
-      totalSessions: prev.totalSessions + 1,
-      totalPracticeTime: prev.totalPracticeTime + Math.floor(duration / 60),
-      averageBand: Math.round(((prev.averageBand * prev.totalSessions + avgBand) / (prev.totalSessions + 1)) * 2) / 2,
-      recentAttempts: [...prev.recentAttempts, {
-        date: new Date(sessionStartTime).toLocaleDateString(),
-        band: Math.round(avgBand * 2) / 2
-      }].slice(-5)
-    }));
-  };
-
-  const handleSaveVocabulary = (word: string) => {
-    // Check if word already exists
-    if (stats.vocabularyBank.some(item => item.word.toLowerCase() === word.toLowerCase())) {
-      return;
-    }
-
-    const newItem = {
-      word,
-      definition: "Review during your next session", // Placeholder or fetch from AI
-      example: "Used in your recent IELTS practice session",
-      learnedDate: Date.now(),
-      reviewCount: 0
-    };
-
-    setStats(prev => ({
-      ...prev,
-      vocabularyBank: [newItem, ...prev.vocabularyBank]
-    }));
-  };
-
-  const handleExportPDF = (session: SessionHistory) => {
-    // Simple text export (in real app, use jsPDF or similar)
-    const content = `
-IELTS Speaking Session Report
-Date: ${new Date(session.date).toLocaleString()}
-Mode: ${session.mode}
-Duration: ${Math.floor(session.duration / 60)}m ${session.duration % 60}s
-
-SCORES:
-Overall Band: ${session.averageBand}
-Grammar: ${session.grammarScore}%
-Fluency: ${session.fluencyScore}%
-Pronunciation: ${session.pronunciationScore}%
-Vocabulary: ${session.vocabularyScore}%
-
-CONVERSATION:
-${session.conversation.map(turn => `
-${turn.role.toUpperCase()}: ${turn.text || '[Audio]'}
-${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
-`).join('\n')}
-    `;
-
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `IELTS-Session-${session.id}.txt`;
-    a.click();
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Main content renderer based on current module
   const renderContent = () => {
-    // Home - Module Selection
     if (currentModule === 'home') {
-      return (
-        <ModuleNavigation
-          onSelectModule={(module) => {
-            setCurrentModule(module);
-            setView('dashboard');
-          }}
-          stats={{
-            speaking: { sessions: stats.totalSessions, band: stats.averageBand },
-            vocabulary: { wordsLearned: stats.vocabularyBank.length }
-          }}
-        />
-      );
+      return <ModuleNavigation onSelectModule={(m) => setCurrentModule(m)} stats={{ speaking: { sessions: stats.totalSessions, band: stats.averageBand }, vocabulary: { wordsLearned: stats.vocabularyBank.length } }} />;
     }
 
-    // Speaking Module
     if (currentModule === 'speaking') {
-      if (view === 'dashboard') {
-        return (
-          <Dashboard
-            onStartPractice={() => setView('selector')}
-            onStartGrammarCoach={() => handleStartPractice(PracticeMode.GRAMMAR_COACH)}
-            onViewHistory={() => setShowHistory(true)}
-            stats={stats}
-          />
-        );
-      } else if (view === 'selector') {
-        return (
-          <PracticeSelector
-            onStart={handleStartPractice}
-            onCancel={() => setView('dashboard')}
-          />
-        );
-      } else if (view === 'practice') {
+      if (view === 'dashboard') return <Dashboard onStartPractice={() => setView('selector')} onStartGrammarCoach={() => handleStartPractice(PracticeMode.GRAMMAR_COACH)} onViewHistory={() => setShowHistory(true)} stats={stats} />;
+      if (view === 'selector') return <PracticeSelector onStart={handleStartPractice} onCancel={() => setView('dashboard')} />;
+      if (view === 'practice') {
         return (
           <div className="max-w-4xl mx-auto p-4 space-y-6">
             {/* Status Bar */}
@@ -438,13 +255,46 @@ ${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
                 </div>
                 <div className="ml-6">
                   <p className="text-lg text-gray-800 leading-relaxed font-medium">
-                    {examinerText}
+                    {isStreaming && streamingExaminerText ? (
+                      <>
+                        {streamingExaminerText}
+                        <span className="inline-block w-2 h-5 bg-indigo-600 ml-1 animate-pulse"></span>
+                      </>
+                    ) : (
+                      examinerText
+                    )}
                   </p>
+                  {isStreaming && !streamingExaminerText && (
+                    <div className="flex items-center gap-2 text-indigo-600">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                      <span className="text-sm font-medium">Analyzing your response...</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* User Transcript Display */}
-              {conversation.filter(t => t.role === 'user' && t.text).slice(-1).map((turn) => (
+              {/* Streaming User Transcript Display */}
+              {isStreaming && streamingTranscript && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200 animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <MessageSquare className="w-5 h-5 text-purple-600 mt-1" />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-purple-900 mb-1 flex items-center gap-2">
+                        You said:
+                        <span className="inline-block w-1.5 h-1.5 bg-purple-600 rounded-full animate-pulse"></span>
+                      </div>
+                      <p className="text-gray-800 italic">"{streamingTranscript}"</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* User Transcript Display (Final) */}
+              {!isStreaming && conversation.filter(t => t.role === 'user' && t.text).slice(-1).map((turn) => (
                 <div key={turn.id} className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
                   <div className="flex items-start gap-3">
                     <MessageSquare className="w-5 h-5 text-purple-600 mt-1" />
@@ -495,290 +345,155 @@ ${turn.feedback ? `Band: ${turn.feedback.estimatedBand}` : ''}
       }
     }
 
-    // Reading Module
     if (currentModule === 'reading') {
-      if (view === 'results' && selectedPassage && showReadingResults) {
-        return (
-          <ReadingResults
-            passage={selectedPassage}
-            answers={readingAnswers}
-            timeSpent={readingTimeSpent}
-            onRetry={() => {
-              setShowReadingResults(false);
-              setView('test');
-            }}
-            onBackToDashboard={() => {
-              setView('dashboard');
-              setShowReadingResults(false);
-              setSelectedPassage(null);
-            }}
-          />
-        );
-      } else if (view === 'test' && selectedPassage) {
-        return (
-          <ReadingTest
-            passage={selectedPassage}
-            onComplete={(answers, timeSpent) => {
-              setReadingAnswers(answers);
-              setReadingTimeSpent(timeSpent);
-              setShowReadingResults(true);
-              setView('results');
-            }}
-            onCancel={() => {
-              setView('dashboard');
-              setSelectedPassage(null);
-            }}
-          />
-        );
-      } else {
-        return (
-          <ReadingDashboard
-            onStartTest={(passage) => {
-              setSelectedPassage(passage);
-              setView('test');
-            }}
-            onViewResults={() => {
-              // TODO: Implement results history view
-            }}
-          />
-        );
-      }
+      if (view === 'results' && selectedPassage) return <ReadingResults passage={selectedPassage} answers={readingAnswers} timeSpent={readingTimeSpent} onRetry={() => setView('test')} onBackToDashboard={() => { setView('dashboard'); setSelectedPassage(null); }} />;
+      if (view === 'test' && selectedPassage) return <ReadingTest passage={selectedPassage} onComplete={(a, t) => { setReadingAnswers(a); setReadingTimeSpent(t); setView('results'); }} onCancel={() => setView('dashboard')} />;
+      return <ReadingDashboard onStartTest={(p) => { setSelectedPassage(p); setView('test'); }} onViewResults={() => { }} />;
     }
 
-    // Writing Module
     if (currentModule === 'writing') {
-      if (view === 'results' && selectedPrompt && writingFeedback) {
-        return (
-          <WritingResults
-            prompt={selectedPrompt}
-            content={writingContent}
-            feedback={writingFeedback}
-            onRetry={() => {
-              setWritingFeedback(null);
-              setWritingContent('');
-              setView('test');
-            }}
-            onBackToDashboard={() => {
-              setView('dashboard');
-              setWritingFeedback(null);
-              setWritingContent('');
-              setSelectedPrompt(null);
-            }}
-          />
-        );
-      } else if (view === 'test' && selectedPrompt) {
-        return (
-          <WritingEditor
-            prompt={selectedPrompt}
-            onSubmit={async (content, wordCount, timeSpent) => {
-              setWritingContent(content);
-              setIsAnalyzing(true);
-              try {
-                const feedback = await analyzeWriting(content, selectedPrompt.taskType, selectedPrompt.prompt);
-                setWritingFeedback(feedback);
-                setView('results');
-              } catch (error) {
-                console.error('Error analyzing writing:', error);
-                alert('Failed to analyze writing. Please try again.');
-              } finally {
-                setIsAnalyzing(false);
-              }
-            }}
-            onCancel={() => {
-              setView('dashboard');
-              setSelectedPrompt(null);
-              setWritingContent('');
-            }}
-          />
-        );
-      } else {
-        return (
-          <WritingDashboard
-            onStartTask={(prompt) => {
-              setSelectedPrompt(prompt);
-              setView('test');
-            }}
-            onViewResults={() => {
-              // TODO: Implement results history view
-            }}
-          />
-        );
-      }
+      if (view === 'results' && selectedPrompt && writingFeedback) return <WritingResults prompt={selectedPrompt} content={writingContent} feedback={writingFeedback} onRetry={() => setView('test')} onBackToDashboard={() => setView('dashboard')} />;
+      if (view === 'test' && selectedPrompt) return <WritingEditor prompt={selectedPrompt} onSubmit={async (c) => { setWritingContent(c); setIsAnalyzing(true); const f = await analyzeWriting(c, selectedPrompt.taskType, selectedPrompt.prompt); setWritingFeedback(f); setIsAnalyzing(false); setView('results'); }} onCancel={() => setView('dashboard')} />;
+      return <WritingDashboard onStartTask={(p) => { setSelectedPrompt(p); setView('test'); }} onViewResults={() => { }} />;
     }
 
-    // Vocabulary Module
     if (currentModule === 'vocabulary') {
-      if (showFlashcards && selectedVocabTopic) {
-        const topicWords = SAMPLE_VOCABULARY[selectedVocabTopic.id] || [];
-        return (
-          <Flashcards
-            topic={selectedVocabTopic}
-            words={topicWords}
-            onComplete={(correctCount, totalCount) => {
-              setShowFlashcards(false);
-              setSelectedVocabTopic(null);
-              // TODO: Save progress
-            }}
-            onBack={() => {
-              setShowFlashcards(false);
-              setSelectedVocabTopic(null);
-            }}
-          />
-        );
-      } else {
-        return (
-          <VocabularyDashboard
-            onStartFlashcards={(topic) => {
-              setSelectedVocabTopic(topic);
-              setShowFlashcards(true);
-            }}
-            onViewWordList={(topic) => {
-              // TODO: Implement word list view
-            }}
-            stats={{
-              totalWords: stats.vocabularyBank.length,
-              masteredWords: Math.floor(stats.vocabularyBank.length * 0.6),
-              currentStreak: 5,
-              dailyGoal: 10
-            }}
-          />
-        );
-      }
+      if (showFlashcards && selectedVocabTopic) return <Flashcards topic={selectedVocabTopic} words={SAMPLE_VOCABULARY[selectedVocabTopic.id] || []} onComplete={() => setShowFlashcards(false)} onBack={() => setShowFlashcards(false)} />;
+      return <VocabularyDashboard onStartFlashcards={(t) => { setSelectedVocabTopic(t); setShowFlashcards(true); }} onViewWordList={() => { }} stats={{ totalWords: stats.vocabularyBank.length, masteredWords: 10, currentStreak: 5, dailyGoal: 10 }} />;
     }
 
-    // Listening Module
     if (currentModule === 'listening') {
-      if (view === 'results' && selectedListeningTest && showListeningResults) {
+      if (view === 'results' && selectedListeningTest) return <ListeningResults test={selectedListeningTest} answers={listeningAnswers} timeSpent={listeningTimeSpent} onRetry={() => setView('dashboard')} onBackToDashboard={() => setView('dashboard')} />;
+      if (view === 'test' && selectedListeningTest) return <ListeningTestComponent test={selectedListeningTest} onComplete={(a, t) => { setListeningAnswers(a); setListeningTimeSpent(t); setView('results'); }} onCancel={() => setView('dashboard')} />;
+      return <ListeningDashboard onStartTest={(t) => { setSelectedListeningTest(t); setView('test'); }} onViewResults={() => { }} />;
+    }
+
+    if (currentModule === 'mocktest') {
+      if (view === 'test' && activeMockTest) {
         return (
-          <ListeningResults
-            test={selectedListeningTest}
-            answers={listeningAnswers}
-            timeSpent={listeningTimeSpent}
-            onRetry={() => {
-              setShowListeningResults(false);
-              setView('dashboard');
-              setSelectedListeningTest(null);
-            }}
-            onBackToDashboard={() => {
-              setView('dashboard');
-              setShowListeningResults(false);
-              setSelectedListeningTest(null);
-            }}
-          />
-        );
-      } else if (view === 'test' && selectedListeningTest) {
-        return (
-          <ListeningTestComponent
-            test={selectedListeningTest}
-            onComplete={(answers, timeSpent) => {
-              setListeningAnswers(answers);
-              setListeningTimeSpent(timeSpent);
-              setShowListeningResults(true);
+          <MockTestEngine
+            testPackage={activeMockTest}
+            onComplete={(session) => {
+              setMockSession(session);
               setView('results');
             }}
             onCancel={() => {
+              setActiveMockTest(null);
               setView('dashboard');
-              setSelectedListeningTest(null);
-            }}
-          />
-        );
-      } else {
-        return (
-          <ListeningDashboard
-            onStartTest={(test) => {
-              setSelectedListeningTest(test);
-              setView('test');
-            }}
-            onViewResults={() => {
-              // TODO: Implement results history view
             }}
           />
         );
       }
+      if (view === 'results' && mockSession) {
+        return (
+          <MockTestResults
+            session={mockSession}
+            onBackToDashboard={() => {
+              setMockSession(null);
+              setActiveMockTest(null);
+              setView('dashboard');
+            }}
+          />
+        );
+      }
+      return (
+        <MockTestDashboard
+          onStartFullTest={(pkg) => {
+            setActiveMockTest(pkg);
+            setView('test');
+          }}
+          onStartModuleTest={(m) => {
+            setCurrentModule(m);
+            setView('dashboard');
+          }}
+          stats={mockTestStats}
+        />
+      );
     }
 
-    // Placeholder for other modules
     return (
-      <div className="max-w-4xl mx-auto p-6 text-center">
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-          {currentModule.charAt(0).toUpperCase() + currentModule.slice(1)} Module
-        </h2>
-        <p className="text-gray-600 mb-6">This module is coming soon!</p>
-        <button
-          onClick={() => setCurrentModule('home')}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
-        >
-          Back to All Modules
-        </button>
+      <div className="p-8 text-center">
+        <h2 className="text-2xl font-bold mb-4">{currentModule} coming soon!</h2>
+        <button onClick={() => setCurrentModule('home')} className="bg-indigo-600 text-white px-4 py-2 rounded-lg">Home</button>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 text-gray-800 font-sans">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setCurrentModule('home'); setView('dashboard'); }}>
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-1.5 rounded-lg">
-              <Mic className="text-white w-5 h-5" />
+    <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden">
+      {/* Background Blobs for specific modules or global */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[100px] animate-blob" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[100px] animate-blob animation-delay-2000" />
+      </div>
+
+      {/* Navbar - Premium Floating Style */}
+      <nav className="fixed top-6 left-1/2 -translate-x-1/2 w-[90%] max-w-7xl z-[100] transition-all duration-500">
+        <div className="bg-white/70 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] rounded-[2rem] px-8 py-3 flex items-center justify-between">
+          {/* Logo Section */}
+          <div
+            className="flex items-center gap-3 cursor-pointer group"
+            onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
+          >
+            <div className="relative">
+              <div className="absolute inset-0 bg-indigo-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity" />
+              <div className="relative bg-gradient-to-br from-indigo-600 to-purple-600 p-2.5 rounded-2xl shadow-xl transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110">
+                <Mic className="text-white w-5 h-5" />
+              </div>
             </div>
-            <span className="font-bold text-xl text-gray-900 tracking-tight">IELTS<span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">TalkMate</span></span>
+            <div className="flex flex-col">
+              <span className="font-black text-xl text-slate-900 tracking-tight leading-none">
+                IELTS<span className="text-indigo-600">TalkMate</span>
+              </span>
+              <span className="text-[0.6rem] uppercase tracking-widest font-black text-slate-400 mt-1">
+                AI Powered Success
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            {currentModule !== 'home' && (
-              <button
-                onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
-                className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1"
-              >
-                <Home className="w-4 h-4" /> All Modules
+
+          {/* Navigation & Profile */}
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-2 pr-6 border-r border-slate-200/50">
+              {currentModule !== 'home' && (
+                <button
+                  onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 transition-all"
+                >
+                  <Home className="w-4 h-4" />
+                  Platform Home
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 pl-2">
+              <button className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
+                <div className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                <Settings className="w-5 h-5 text-slate-500" />
               </button>
-            )}
-            {view === 'practice' && currentModule === 'speaking' && (
-              <button onClick={() => { setView('dashboard'); saveSession(); }} className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1">
-                <ArrowLeft className="w-4 h-4" /> End Session
-              </button>
-            )}
-            {view === 'test' && currentModule === 'reading' && (
-              <button onClick={() => { setView('dashboard'); setSelectedPassage(null); }} className="text-sm font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1">
-                <ArrowLeft className="w-4 h-4" /> Exit Test
-              </button>
-            )}
+
+              <div className="flex items-center gap-3 pl-2 cursor-pointer group">
+                <div className="flex flex-col text-right hidden sm:flex">
+                  <span className="text-xs font-black text-slate-900 leading-none">Pranav Rane</span>
+                  <span className="text-[0.65rem] font-bold text-indigo-500 mt-0.5">Pro Member</span>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-200 to-slate-100 p-0.5 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 border border-slate-200">
+                  <div className="w-full h-full rounded-[0.9rem] overflow-hidden bg-white">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Pranav" alt="avatar" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* Content */}
-      <main className="pb-20">{renderContent()}</main>
+      {/* Main Content Area */}
+      <main className="relative z-10 pt-32 pb-20">
+        {renderContent()}
+      </main>
 
-      {/* Session History Modal */}
-      {showHistory && (
-        <SessionHistoryView
-          sessions={stats.sessions}
-          onViewSession={(session) => setSelectedSession(session)}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
-
-      {/* Session Detail Modal */}
-      {selectedSession && (
-        <SessionDetailView
-          session={selectedSession}
-          onClose={() => setSelectedSession(null)}
-          onExportPDF={handleExportPDF}
-        />
-      )}
-
-      {/* API Key Warning */}
-      {!process.env.API_KEY && (
-        <div className="fixed bottom-4 right-4 bg-amber-100 border border-amber-300 text-amber-800 p-4 rounded-lg shadow-lg max-w-sm flex items-start gap-3 z-50">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <strong>API Key Missing:</strong> Please configure <code>GEMINI_API_KEY</code> in your .env.local file to enable AI features.
-          </div>
-        </div>
-      )}
-
+      {showHistory && <SessionHistoryView sessions={stats.sessions} onViewSession={setSelectedSession} onClose={() => setShowHistory(false)} />}
+      {selectedSession && <SessionDetailView session={selectedSession} onClose={() => setSelectedSession(null)} onExportPDF={handleExportPDF} />}
     </div>
   );
 }

@@ -25,7 +25,7 @@ export const ListeningTestComponent: React.FC<ListeningTestProps> = ({ test, onC
 
     // Get audio script based on test ID
     const getAudioScript = () => {
-        if (test.id === 'listen1') return LISTENING_SCRIPTS.climate_lecture;
+        if (test.id === 'listen1' || test.id === 'L-001') return LISTENING_SCRIPTS.climate_lecture;
         if (test.id === 'listen2') return LISTENING_SCRIPTS.housing_conversation;
         if (test.id === 'listen3') return LISTENING_SCRIPTS.tech_education;
         return LISTENING_SCRIPTS.climate_lecture; // fallback
@@ -192,8 +192,8 @@ export const ListeningTestComponent: React.FC<ListeningTestProps> = ({ test, onC
                                     setIsPlaying(false);
                                 }}
                                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${idx === currentSectionIndex
-                                        ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                             >
                                 Section {idx + 1}
@@ -287,8 +287,8 @@ export const ListeningTestComponent: React.FC<ListeningTestProps> = ({ test, onC
                                     <div
                                         key={question.id}
                                         className={`p-6 rounded-xl border-2 transition-all ${answers[question.id]
-                                                ? 'bg-green-50 border-green-200'
-                                                : 'bg-gray-50 border-gray-200'
+                                            ? 'bg-green-50 border-green-200'
+                                            : 'bg-gray-50 border-gray-200'
                                             }`}
                                     >
                                         <div className="flex items-start gap-3 mb-3">

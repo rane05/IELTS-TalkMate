@@ -1,14 +1,28 @@
 import { WritingFeedback } from '../types/writing';
+import { simulateTextStreaming } from './streamingService';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-export async function analyzeWriting(
+export interface WritingStreamingCallbacks {
+    onAnalysisChunk?: (chunk: string) => void;
+    onPartialFeedback?: (partial: Partial<WritingFeedback>) => void;
+    onComplete?: (feedback: WritingFeedback) => void;
+    onError?: (error: Error) => void;
+}
+
+/**
+ * Analyze writing with streaming for real-time feedback
+ * This creates a more engaging experience during analysis
+ */
+export async function analyzeWritingStreaming(
     content: string,
     taskType: string,
-    prompt: string
-): Promise<WritingFeedback> {
+    prompt: string,
+    callbacks: WritingStreamingCallbacks
+): Promise<void> {
     if (!GEMINI_API_KEY) {
-        throw new Error('Gemini API key not configured');
+        callbacks.onError?.(new Error('Gemini API key not configured'));
+        return;
     }
 
     const analysisPrompt = `You are an expert IELTS examiner. Analyze the following IELTS writing task and provide detailed feedback.
@@ -60,8 +74,11 @@ Provide a comprehensive analysis in the following JSON format:
 Be specific, constructive, and encouraging. Identify both strengths and areas for improvement.`;
 
     try {
+        // Show initial analyzing message
+        callbacks.onAnalysisChunk?.("Analyzing your essay...");
+
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -81,26 +98,85 @@ Be specific, constructive, and encouraging. Identify both strengths and areas fo
             throw new Error(`API request failed: ${response.statusText}`);
         }
 
-        const data = await response.json();
-        const textResponse = data.candidates[0].content.parts[0].text;
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('No response body');
+        }
 
-        // Extract JSON from response (handle markdown code blocks)
-        const jsonMatch = textResponse.match(/```json\n([\s\S]*?)\n```/) ||
-            textResponse.match(/\{[\s\S]*\}/);
+        const decoder = new TextDecoder();
+        let accumulatedText = '';
+        let analysisMessages = [
+            "Reading your essay...",
+            "Checking grammar and vocabulary...",
+            "Evaluating task achievement...",
+            "Analyzing coherence and cohesion...",
+            "Calculating band scores...",
+            "Preparing detailed feedback..."
+        ];
+        let messageIndex = 0;
+
+        // Show progressive analysis messages
+        const messageInterval = setInterval(() => {
+            if (messageIndex < analysisMessages.length) {
+                callbacks.onAnalysisChunk?.(analysisMessages[messageIndex]);
+                messageIndex++;
+            }
+        }, 800);
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            accumulatedText += chunk;
+
+            // Try to extract partial feedback
+            try {
+                // Parse the streaming response format
+                const lines = accumulatedText.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.substring(6);
+                        if (jsonStr.trim() === '[DONE]') continue;
+
+                        const data = JSON.parse(jsonStr);
+                        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (text) {
+                            // Try to parse as complete JSON
+                            const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) ||
+                                text.match(/\{[\s\S]*\}/);
+
+                            if (jsonMatch) {
+                                const feedback = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+                                callbacks.onPartialFeedback?.(feedback);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // Continue accumulating
+            }
+        }
+
+        clearInterval(messageInterval);
+
+        // Final parse
+        const jsonMatch = accumulatedText.match(/```json\n([\s\S]*?)\n```/) ||
+            accumulatedText.match(/\{[\s\S]*\}/);
 
         if (!jsonMatch) {
             throw new Error('Could not parse AI response');
         }
 
         const feedback = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+        callbacks.onComplete?.(feedback);
 
-        return feedback;
     } catch (error) {
         console.error('Error analyzing writing:', error);
 
         // Return fallback feedback
         const wordCount = content.trim().split(/\s+/).length;
-        return {
+        const fallbackFeedback: WritingFeedback = {
             taskAchievement: {
                 score: 6,
                 comments: ['Unable to get AI feedback at this time. Please try again.'],
@@ -130,5 +206,24 @@ Be specific, constructive, and encouraging. Identify both strengths and areas fo
             wordCount,
             estimatedTime: 0
         };
+
+        callbacks.onError?.(error as Error);
+        callbacks.onComplete?.(fallbackFeedback);
     }
+}
+
+/**
+ * Original non-streaming function for backward compatibility
+ */
+export async function analyzeWriting(
+    content: string,
+    taskType: string,
+    prompt: string
+): Promise<WritingFeedback> {
+    return new Promise((resolve, reject) => {
+        analyzeWritingStreaming(content, taskType, prompt, {
+            onComplete: resolve,
+            onError: reject
+        });
+    });
 }

@@ -127,7 +127,8 @@ export const processUserAudio = async (
           wordStress: 0,
           problematicWords: [],
           suggestions: []
-        }
+        },
+        fillerWordCount: 0
       }
     };
   }
