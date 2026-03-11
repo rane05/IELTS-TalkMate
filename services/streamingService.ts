@@ -3,7 +3,6 @@ import { ExaminerResponse, ExamPart } from '../types';
 import { SYSTEM_INSTRUCTION } from '../constants';
 
 const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
 
 const feedbackSchema: Schema = {
     type: Type.OBJECT,
@@ -67,6 +66,14 @@ export const processUserAudioStreaming = async (
     }
 
     const model = "gemini-3-flash-preview";
+    
+    let ai;
+    try {
+        ai = new GoogleGenAI({ apiKey });
+    } catch (e) {
+        callbacks.onError?.(new Error("Failed to initialize Gemini API. Please check your API key."));
+        return;
+    }
 
     // Prompt construction
     const personalityContext = personality === 'ENCOURAGING'

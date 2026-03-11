@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion';
 import { Dashboard } from './components/Dashboard';
 import { AudioRecorder } from './components/AudioRecorder';
 import { FeedbackCard } from './components/FeedbackCard';
@@ -53,6 +54,7 @@ export default function App() {
   const [view, setView] = useState<'dashboard' | 'practice' | 'selector' | 'test' | 'results'>('dashboard');
   const [showHistory, setShowHistory] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionHistory | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Practice states
   const [currentPart, setCurrentPart] = useState<ExamPart>(ExamPart.IDLE);
@@ -412,71 +414,108 @@ export default function App() {
     );
   };
 
+  const { scrollY } = useScroll();
+  const navPadY = useTransform(scrollY, [0, 80], [24, 10]);
+  const navShadow = useTransform(scrollY, [0, 80], ['0 4px 24px rgba(99,102,241,0)', '0 8px 40px rgba(99,102,241,0.10)']);
+  const navBg = useTransform(scrollY, [0, 80], ['rgba(255,255,255,0.60)', 'rgba(255,255,255,0.80)']);
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden">
-      {/* Background Blobs for specific modules or global */}
+    <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden" style={{ fontFamily: 'Outfit, Inter, sans-serif' }}>
+      {/* Background Blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[100px] animate-blob" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/5 rounded-full blur-[100px] animate-blob animation-delay-2000" />
+        <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-500/5 rounded-full blur-[110px] animate-blob" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[55%] h-[55%] bg-purple-500/5 rounded-full blur-[110px] animate-blob animation-delay-2000" />
       </div>
 
-      {/* Navbar - Premium Floating Style */}
-      <nav className="fixed top-6 left-1/2 -translate-x-1/2 w-[90%] max-w-7xl z-[100] transition-all duration-500">
-        <div className="bg-white/70 backdrop-blur-2xl border border-white/40 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] rounded-[2rem] px-8 py-3 flex items-center justify-between">
-          <div
-            className="flex items-center gap-3 cursor-pointer group"
-            onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
+      {/* Floating Navbar */}
+      <motion.nav
+        style={{ paddingTop: navPadY, paddingBottom: navPadY, boxShadow: navShadow }}
+        className="fixed top-0 left-0 right-0 z-[100] w-full"
+      >
+        <div className="max-w-7xl mx-auto px-4">
+          <motion.div
+            style={{ backgroundColor: navBg }}
+            className="backdrop-blur-2xl border border-white/40 rounded-[2rem] px-6 py-0 flex items-center justify-between overflow-hidden"
           >
-            <div className="relative">
-              <div className="absolute inset-0 bg-indigo-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity" />
-              <div className="relative bg-gradient-to-br from-indigo-600 to-purple-600 p-2.5 rounded-2xl shadow-xl transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110">
-                <Mic className="text-white w-5 h-5" />
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-black text-xl text-slate-900 tracking-tight leading-none">
-                IELTS<span className="text-indigo-600">TalkMate</span>
-              </span>
-              <span className="text-[0.6rem] uppercase tracking-widest font-black text-slate-400 mt-1">
-                AI Powered Success
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="hidden md:flex items-center gap-2 pr-6 border-r border-slate-200/50">
-              {currentModule !== 'home' && (
-                <button
-                  onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
-                  className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 transition-all"
+            {/* Logo */}
+            <motion.div
+              className="flex items-center gap-3 cursor-pointer group py-3"
+              onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <div className="relative">
+                <div className="absolute inset-0 bg-indigo-500 blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-500" />
+                <motion.div
+                  whileHover={{ rotate: 12, scale: 1.1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  className="relative bg-gradient-to-br from-indigo-600 to-purple-600 p-2.5 rounded-2xl shadow-xl"
                 >
-                  <Home className="w-4 h-4" />
-                  Platform Home
-                </button>
+                  <Mic className="text-white w-5 h-5" />
+                </motion.div>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-black text-xl text-slate-900 tracking-tight leading-none">
+                  IELTS<span className="text-indigo-600">TalkMate</span>
+                </span>
+                <span className="text-[0.58rem] uppercase tracking-[0.2em] font-black text-slate-400">
+                  AI Powered Success
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Nav actions */}
+            <div className="flex items-center gap-4">
+              {currentModule !== 'home' && (
+                <motion.button
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  onClick={() => { setCurrentModule('home'); setView('dashboard'); }}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                >
+                  <Home className="w-4 h-4" /> Platform Home
+                </motion.button>
               )}
-            </div>
 
-            <div className="flex items-center gap-4 pl-2">
-              <button className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
-                <div className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-                <Settings className="w-5 h-5 text-slate-500" />
-              </button>
+              <div className="h-7 w-px bg-slate-200/60 hidden md:block" />
 
-              <div className="flex items-center gap-3 pl-2 cursor-pointer group">
-                <div className="flex flex-col text-right hidden sm:flex">
+              {/* Settings */}
+              <motion.button
+                onClick={() => setShowSettings(s => !s)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-indigo-50 transition-colors group"
+              >
+                <div className="absolute inset-0 rounded-full border border-indigo-200 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-110 transition-all duration-300" />
+                <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
+                <Settings className="w-4 h-4 text-slate-500 group-hover:text-indigo-600 transition-colors" />
+              </motion.button>
+
+              {/* Avatar */}
+              <motion.div
+                whileHover={{ scale: 1.08 }}
+                className="flex items-center gap-3 cursor-pointer pl-2"
+              >
+                <div className="flex-col text-right hidden sm:flex">
                   <span className="text-xs font-black text-slate-900 leading-none">Pranav Rane</span>
-                  <span className="text-[0.65rem] font-bold text-indigo-500 mt-0.5">Pro Member</span>
+                  <span className="text-[0.62rem] font-bold text-indigo-500 mt-0.5">Pro Member</span>
                 </div>
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-200 to-slate-100 p-0.5 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 border border-slate-200">
-                  <div className="w-full h-full rounded-[0.9rem] overflow-hidden bg-white">
+                <motion.div
+                  whileHover={{ rotate: 5, scale: 1.12 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                  className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 p-0.5 border border-indigo-200 shadow-sm"
+                >
+                  <div className="w-full h-full rounded-[0.85rem] overflow-hidden bg-white">
                     <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Pranav" alt="avatar" />
                   </div>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         </div>
-      </nav>
+      </motion.nav>
 
       {/* Main Content Area */}
       <main className="relative z-10 pt-32 pb-20">
@@ -513,6 +552,79 @@ export default function App() {
 
       {showHistory && <SessionHistoryView sessions={stats.sessions} onViewSession={setSelectedSession} onClose={() => setShowHistory(false)} />}
       {selectedSession && <SessionDetailView session={selectedSession} onClose={() => setSelectedSession(null)} onExportPDF={handleExportPDF} />}
+
+      {/* ── Settings Panel ── */}
+      <AnimatePresence>
+        {showSettings && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="settings-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowSettings(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[150]"
+            />
+            {/* Panel */}
+            <motion.div
+              key="settings-panel"
+              initial={{ opacity: 0, y: 16, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.97 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="fixed top-[5.5rem] right-6 w-[320px] z-[200] bg-white/95 backdrop-blur-2xl rounded-2xl border border-slate-200/80 shadow-2xl overflow-hidden"
+              style={{ fontFamily: 'Outfit, Inter, sans-serif' }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">Settings</h3>
+                  <p className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-widest">Preferences</p>
+                </div>
+                <button onClick={() => setShowSettings(false)}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors text-xs font-black">
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Examiner personality */}
+                <div>
+                  <p className="text-[0.6rem] font-black uppercase tracking-widest text-slate-400 mb-2">Examiner Personality</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['Professional', 'Friendly', 'Strict'].map(p => (
+                      <button key={p}
+                        className={`py-2 rounded-xl text-[0.7rem] font-black border transition-all ${
+                          currentPersonality === p.toUpperCase()
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                        }`}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Account */}
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-indigo-100 flex-shrink-0">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Pranav" alt="avatar" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-900 leading-none">Pranav Rane</p>
+                    <p className="text-[0.65rem] font-bold text-indigo-500 mt-0.5">Pro Member · Active</p>
+                  </div>
+                </div>
+
+                {/* Version */}
+                <div className="flex items-center justify-between text-[0.62rem] font-bold text-slate-400">
+                  <span>IELTS TalkMate v2.0</span>
+                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">Up to date</span>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

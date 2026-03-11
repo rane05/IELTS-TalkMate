@@ -4,8 +4,6 @@ import { SYSTEM_INSTRUCTION } from '../constants';
 
 const apiKey = process.env.API_KEY || '';
 
-const ai = new GoogleGenAI({ apiKey });
-
 const feedbackSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -54,6 +52,13 @@ export const processUserAudio = async (
   }
 
   const model = "gemini-3-flash-preview";
+
+  let ai;
+  try {
+    ai = new GoogleGenAI({ apiKey });
+  } catch (e) {
+    throw new Error("Failed to initialize Gemini API. Please check your API key.");
+  }
 
   // Prompt construction to guide the model's state
   const personalityContext = personality === 'ENCOURAGING'
