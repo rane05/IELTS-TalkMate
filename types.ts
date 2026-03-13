@@ -133,3 +133,20 @@ export interface ExaminerResponse {
   isExamFinished: boolean;
   userTranscript?: string; // What the user said (STT)
 }
+
+export interface RoutineItem {
+  day: string;
+  tasks: string[];
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  targetBand: number;
+  englishLevel?: DifficultyLevel;
+  routine?: RoutineItem[];
+  examDate?: string;
+  joinedAt: number;
+}

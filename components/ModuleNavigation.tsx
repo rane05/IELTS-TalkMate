@@ -18,9 +18,10 @@ import {
     Flame,
     Award,
     TrendingUp,
-    CheckCircle2
+    CheckCircle2,
+    Calendar
 } from 'lucide-react';
-import { SessionStats } from '../types';
+import { SessionStats, User } from '../types';
 
 export type ModuleName = 'speaking' | 'reading' | 'writing' | 'listening' | 'vocabulary' | 'mocktest' | 'resources' | 'analytics';
 
@@ -106,9 +107,13 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 interface ModuleNavigationProps {
     onSelectModule: (module: ModuleName) => void;
     stats: SessionStats;
+    user: User | null;
 }
 
-export const ModuleNavigation: React.FC<ModuleNavigationProps> = ({ onSelectModule, stats }) => {
+export const ModuleNavigation: React.FC<ModuleNavigationProps> = ({ onSelectModule, stats, user }) => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDay = days[new Date().getDay()];
+    const todayRoutine = user?.routine?.find(r => r.day === currentDay);
     const modules = [
         { name: 'speaking' as ModuleName, title: 'Speaking', description: 'AI interview simulation with real-time feedback', icon: <Mic />, gradient: 'from-blue-600 to-indigo-600', color: 'blue', stats: { label: 'Last Band', value: stats.moduleBreakdown.speaking } },
         { name: 'reading' as ModuleName, title: 'Reading', description: 'Academic passages with adaptive difficulty', icon: <BookOpen />, gradient: 'from-indigo-600 to-violet-600', color: 'indigo', isNew: true, stats: { label: 'Accuracy', value: stats.moduleBreakdown.reading } },
@@ -130,6 +135,35 @@ export const ModuleNavigation: React.FC<ModuleNavigationProps> = ({ onSelectModu
             </div>
 
             <div className="relative z-10 max-w-7xl mx-auto px-6 py-12 lg:py-20 space-y-20">
+
+                {user?.routine && (
+                    <div className="bg-indigo-600 rounded-[3rem] p-8 md:p-12 text-white relative overflow-hidden group shadow-2xl shadow-indigo-200">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32" />
+                        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                            <div className="space-y-4 flex-1">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[0.65rem] font-bold uppercase tracking-wider">
+                                    <Calendar className="w-3 h-3" /> Today's Routine: {currentDay}
+                                </div>
+                                <h2 className="text-4xl font-black tracking-tight">Focus on your {user.targetBand} Goal</h2>
+                                <div className="flex flex-wrap gap-4">
+                                    {todayRoutine?.tasks.map((task, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 px-4 py-2 bg-black/20 rounded-xl border border-white/10">
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                            <span className="text-sm font-bold">{task}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => onSelectModule('speaking')}
+                                className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-3 active:scale-95 shadow-lg group"
+                            >
+                                Start Daily Mission
+                                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Hero / Quick Success Dashboard */}
                 <div className="grid lg:grid-cols-3 gap-12">
